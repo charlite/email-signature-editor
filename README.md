@@ -1,3 +1,5 @@
+
+
 <img src=".github/icon-cropped.png" width="200" alt="App icon" align="left"/>
 
 <div>
@@ -123,7 +125,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 | ------------------- | ---------------------------- |
 | `npm run dev`       | Start development server     |
 | `npm run build`     | Build for production         |
-| `npm run preview`   | Preview production build     |
+| `npm run preview`   | Build and start wrangler dev |
 | `npm run lint`      | Run ESLint                   |
 | `npm run typecheck` | Run TypeScript type check    |
 
