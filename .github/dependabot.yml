@@ -6,7 +6,7 @@ updates:
     schedule:
       interval: "daily"
     assignees:
-      - "xarlizard"
+      - "charlite"
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -28,7 +28,7 @@ updates:
     schedule:
       interval: "weekly"
     assignees:
-      - "xarlizard"
+      - "charlite"
     commit-message:
       prefix: "ci"
       include: "scope"

@@ -55,11 +55,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/xarlizard/email-signature-editor.git"
+    "url": "git+https://github.com/charlite/email-signature-editor.git"
   },
-  "homepage": "https://github.com/xarlizard/email-signature-editor#readme",
+  "homepage": "https://github.com/charlite/email-signature-editor#readme",
   "bugs": {
-    "url": "https://github.com/xarlizard/email-signature-editor/issues"
+    "url": "https://github.com/charlite/email-signature-editor/issues"
   },
   "keywords": [
     "email",

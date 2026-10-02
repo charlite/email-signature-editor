@@ -11,8 +11,8 @@
 <div align="center">
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-MIT-blue)](https://github.com/xarlizard/email-signature-editor/blob/main/LICENSE)
-[![CI](https://github.com/xarlizard/email-signature-editor/actions/workflows/ci.yml/badge.svg)](https://github.com/xarlizard/email-signature-editor/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-MIT-blue)](https://github.com/charlite/email-signature-editor/blob/main/LICENSE)
+[![CI](https://github.com/charlite/email-signature-editor/actions/workflows/ci.yml/badge.svg)](https://github.com/charlite/email-signature-editor/actions/workflows/ci.yml)
 [![Production Deployment](https://img.shields.io/website?down_message=offline&label=production&up_message=online&url=https%3A%2F%2Femail-signature-editor.pages.dev)](https://email-signature-editor.pages.dev/)
 
 <br/>
@@ -153,7 +153,7 @@ src/
 
 ## Development
 
-- Clone: `git clone https://github.com/xarlizard/email-signature-editor.git`
+- Clone: `git clone https://github.com/charlite/email-signature-editor.git`
 - Install: `npm install`
 - Dev: `npm run dev`
 - Build: `npm run build`
@@ -162,10 +162,10 @@ src/
 
 ## Contributing
 
-Contributions are welcome. Please open [issues](https://github.com/xarlizard/email-signature-editor/issues) or [pull requests](https://github.com/xarlizard/email-signature-editor/pulls).
+Contributions are welcome. Please open [issues](https://github.com/charlite/email-signature-editor/issues) or [pull requests](https://github.com/charlite/email-signature-editor/pulls).
 
 ---
 
 ## License
 
-MIT © [xarlizard](https://github.com/xarlizard)
+MIT © [charlite](https://github.com/charlite)
