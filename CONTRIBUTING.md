@@ -22,7 +22,7 @@ participating, you are expected to uphold this code.
 
 ### 🐛 Reporting Bugs
 
-Before creating bug reports, please check the [existing issues](https://github.com/xarlizard/email-signature-editor/issues) to avoid duplicates. When you create a bug report, please
+Before creating bug reports, please check the [existing issues](https://github.com/charlite/email-signature-editor/issues) to avoid duplicates. When you create a bug report, please
 include:
 
 - **Clear title and description**
@@ -77,7 +77,7 @@ Documentation improvements are always welcome:
 1. **Fork and Clone**
 
    ```bash
-   git clone https://github.com/xarlizard/email-signature-editor.git
+   git clone https://github.com/charlite/email-signature-editor.git
    cd email-signature-editor
    ```
 
@@ -227,8 +227,8 @@ chore: update dependencies
 
 ### Getting Help
 
-- **GitHub Issues**: [Report bugs or request features](https://github.com/xarlizard/email-signature-editor/issues)
-- **Pull Requests**: [Submit contributions](https://github.com/xarlizard/email-signature-editor/pulls)
+- **GitHub Issues**: [Report bugs or request features](https://github.com/charlite/email-signature-editor/issues)
+- **Pull Requests**: [Submit contributions](https://github.com/charlite/email-signature-editor/pulls)
 
 ### Recognition
 

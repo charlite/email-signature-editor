@@ -71,8 +71,8 @@ try {
     Write-Host "3. Or publish manually with: npm publish (requires npm login)" -ForegroundColor White
     Write-Host ""
     Write-Host "To publish to GitHub Packages manually:" -ForegroundColor Cyan
-    Write-Host "npm config set @xarlizard:registry https://npm.pkg.github.com" -ForegroundColor White
-    Write-Host "npm login --scope=@xarlizard --registry=https://npm.pkg.github.com" -ForegroundColor White
+    Write-Host "npm config set @charlite:registry https://npm.pkg.github.com" -ForegroundColor White
+    Write-Host "npm login --scope=@charlite --registry=https://npm.pkg.github.com" -ForegroundColor White
 
 }
 catch {
