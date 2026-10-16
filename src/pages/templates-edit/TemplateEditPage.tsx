@@ -537,15 +537,39 @@ export default function TemplateEditPage() {
 
   const removeFieldFromRow = useCallback(
     (displayIndex: number, fieldIndex: number) => {
-      const builderIndex = resolveBuilderRowIndex(displayIndex);
       const rowId = rowIds[displayIndex];
       const fieldIds = fieldIdsByRowId[rowId] ?? [];
+
+      if (fieldIds.length === 1) {
+        if (rowIds.length > 1) {
+          removeRow(displayIndex);
+          return;
+        }
+
+        const builderIndex = resolveBuilderRowIndex(displayIndex);
+        setBuilderTemplate((prev) => {
+          const nextRows = prev.rows.map((row, index) =>
+            index === builderIndex ? [createTemplateRowField('text')] : row
+          );
+          syncFieldSnapshot(rowId, nextRows[builderIndex]);
+          return { ...prev, rows: nextRows };
+        });
+
+        const newFieldId = createRowId();
+        setFieldIdsByRowId((prev) => ({
+          ...prev,
+          [rowId]: [newFieldId],
+        }));
+        setSelectedField(null);
+        return;
+      }
+
+      const builderIndex = resolveBuilderRowIndex(displayIndex);
 
       setBuilderTemplate((prev) => {
         const nextRows = prev.rows.map((row, index) => {
           if (index !== builderIndex) return row;
-          const next = row.filter((_, i) => i !== fieldIndex);
-          return next.length > 0 ? next : [createTemplateRowField('text')];
+          return row.filter((_, i) => i !== fieldIndex);
         });
         syncFieldSnapshot(rowId, nextRows[builderIndex]);
         return { ...prev, rows: nextRows };
@@ -566,7 +590,7 @@ export default function TemplateEditPage() {
         return current;
       });
     },
-    [resolveBuilderRowIndex, rowIds, fieldIdsByRowId, syncFieldSnapshot]
+    [resolveBuilderRowIndex, rowIds, fieldIdsByRowId, syncFieldSnapshot, removeRow]
   );
 
   const updateSelectedFieldText = useCallback(
