@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -110,12 +111,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setTemplateHtmlState(getTemplateHtml(selectedTemplate));
   }, [selectedTemplate]);
 
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-      return;
-    }
-    document.documentElement.classList.remove('dark');
+  useLayoutEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
   useEffect(() => {

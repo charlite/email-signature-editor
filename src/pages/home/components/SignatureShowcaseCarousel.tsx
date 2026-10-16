@@ -6,7 +6,6 @@ import {
   HOME_SHOWCASE_MODERN_ROW,
   type HomeShowcaseItem,
 } from '@/lib/homeShowcase';
-import { SIGNATURE_PREVIEW_SLOT_HEIGHT } from '@/lib/signaturePreviewIframe';
 import { SignaturePreviewIframe } from '@/components/SignaturePreviewIframe';
 import { cn } from '@/lib/utils';
 
@@ -42,11 +41,13 @@ function ShowcaseMarqueeRow({
   direction,
   label,
   gapClassName = 'gap-10 sm:gap-12',
+  rowClassName,
 }: {
   items: HomeShowcaseItem[];
   direction: 'left' | 'right';
   label: string;
   gapClassName?: string;
+  rowClassName?: string;
 }) {
   const track = useMemo(() => [...items, ...items], [items]);
 
@@ -55,9 +56,9 @@ function ShowcaseMarqueeRow({
       className={cn(
         'home-showcase-marquee flex w-max items-center',
         gapClassName,
-        direction === 'right' && 'home-showcase-marquee-reverse'
+        direction === 'right' && 'home-showcase-marquee-reverse',
+        rowClassName
       )}
-      style={{ height: SIGNATURE_PREVIEW_SLOT_HEIGHT }}
       aria-label={label}
     >
       {track.map((item, index) => (
@@ -81,12 +82,14 @@ export function SignatureShowcaseCarousel() {
       <ShowcaseMarqueeRow
         items={HOME_SHOWCASE_MODERN_ROW}
         direction="left"
-        gapClassName="gap-25 sm:gap-28"
+        gapClassName="gap-23 sm:gap-20"
+        rowClassName="my-0 sm:my-8"
         label={t('home.showcaseModernAriaLabel')}
       />
       <ShowcaseMarqueeRow
         items={HOME_SHOWCASE_COMPACT_ROW}
         direction="right"
+        rowClassName="my-12 sm:my-16"
         label={t('home.showcaseCompactAriaLabel')}
       />
     </section>

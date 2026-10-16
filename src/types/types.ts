@@ -86,7 +86,10 @@ export interface TemplateImageConfig {
 
 export interface TemplateTextConfig {
   font: string;
+  /** Text color for light mode / prefers-color-scheme: light */
   color: string;
+  /** Text color for dark mode / prefers-color-scheme: dark */
+  colorDark: string;
   size: TemplateSize;
   shape: 'normal' | 'bold' | 'italic';
 }
@@ -94,6 +97,7 @@ export interface TemplateTextConfig {
 export const DEFAULT_TEMPLATE_TEXT_CONFIG: TemplateTextConfig = {
   font: 'Arial, sans-serif',
   color: '#222222',
+  colorDark: '#ffffff',
   size: 'md',
   shape: 'normal',
 };
@@ -120,6 +124,7 @@ export const DEFAULT_NEW_TEMPLATE: Omit<NewTemplate, 'id' | 'name' | 'html'> = {
     text: {
       font: 'Arial, sans-serif',
       color: '#222222',
+      colorDark: '#ffffff',
       size: 'md',
       shape: 'normal',
     },

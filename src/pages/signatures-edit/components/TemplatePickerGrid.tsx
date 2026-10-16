@@ -1,24 +1,26 @@
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '@/components/ui/card';
 import { resolveTemplateFromSchema } from '@/lib/templates';
 import { DEFAULT_SIGNATURE_VALUES } from '@/types/types';
 import type { NewTemplate } from '@/types/types';
-import {
-  SIGNATURE_PREVIEW_DOC_PREFIX,
-  SIGNATURE_PREVIEW_DOC_SUFFIX,
-} from '@/lib/signaturePreviewIframe';
+import { useAppPreviewTheme } from '@/hooks/useAppPreviewTheme';
+import { useSyncSignaturePreviewIframeDoc } from '@/hooks/useSyncSignaturePreviewIframeDoc';
 
 /** Renders signature HTML at 50% visual size (zoomed out) so cards stay compact. */
 function TemplatePreviewFrame({ html }: { html: string }) {
+  const previewTheme = useAppPreviewTheme();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  useSyncSignaturePreviewIframeDoc(iframeRef, html, previewTheme);
+
   return (
-    <div className="relative h-[88px] w-full overflow-hidden border-b bg-[oklch(0.98_0.005_0)]">
+    <div className="relative h-[88px] w-full overflow-hidden border-b bg-transparent">
       <div className="pointer-events-none h-[176px] w-[200%] origin-top-left scale-50">
         <iframe
+          ref={iframeRef}
           title=""
-          className="block h-full w-full border-0"
-          srcDoc={
-            SIGNATURE_PREVIEW_DOC_PREFIX + html + SIGNATURE_PREVIEW_DOC_SUFFIX
-          }
+          className="block h-full w-full border-0 bg-transparent"
+          style={{ colorScheme: previewTheme === 'dark' ? 'dark' : 'light' }}
           sandbox="allow-same-origin"
         />
       </div>

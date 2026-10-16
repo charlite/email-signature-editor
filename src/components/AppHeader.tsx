@@ -63,7 +63,10 @@ export function AppHeader({
     <header className="flex h-14 shrink-0 items-center justify-center border-b border-border bg-background px-4">
       <nav className="flex items-center gap-1">
         {navRoutes.map(({ path, label }) => {
-          const isActive = location.pathname === path;
+          const isActive =
+            path === '/'
+              ? location.pathname === path
+              : location.pathname === path || location.pathname.startsWith(`${path}/`);
           return (
             <Button
               key={path}
