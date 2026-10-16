@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-10-17 — Template editor UX, previews, and color picker
+
+### Added
+
+- **Drag-and-drop template layout** – Reorder rows and field chips within rows in the visual template editor (`@dnd-kit/core`, `@dnd-kit/sortable`), with row insert drop zones and dedicated drag-over layout helpers
+- **Field management UI** – `AddFieldMenu` with Radix **dropdown menu** for adding fields; per-row field blocks with remove actions and clearer row/field chrome
+- **`TemplateFieldStylePanel`** – Per-field overrides for font, style, size, and **light/dark text colors** with reset-to-default
+- **`ColorInput` + `ColorPickerPanel`** – Popover color picker (`react-colorful`, `colord`) with preset swatches, saturation/hue picker, RGB and HSL sliders/inputs, and hex entry
+- **App-themed signature previews** – `wrapSignatureHtmlForPreview` / `rewriteSignatureHtmlForAppPreview` flatten `@media (prefers-color-scheme: dark)` rules so in-app previews follow the app light/dark toggle; copied HTML still keeps client-side dark-mode rules
+- **`useSyncSignaturePreviewIframeDoc`** and **`useAppPreviewTheme`** – Shared iframe document sync (layout effect, no theme flash) across template editor, wizard, template picker, library cards, and home marquee
+- **`SignaturePreviewIframe` `fit` modes** – `content` (natural size, home showcase) vs `container` (scale-to-fit library cards) with intrinsic measurement via `measureSignatureIntrinsicSize`
+- **Hyperlink dark-mode colors** – `resolveFieldTextColors` / `signatureTextColors.ts` and builder dark CSS so phone, email, website, and social links use link blue in light mode and `#7CB8FF` in dark when on defaults
+- **Template editor save state** – **Saved** indicator when the custom template matches the last persisted snapshot (`templateEditorSnapshot.ts`)
+- **Dependencies** – `react-colorful`, `colord`, `@dnd-kit/*`, and UI primitives (`popover`, `dropdown-menu`)
+
+### Changed
+
+- **Template editor layout** – Preview and attributes/field panels reorganized: live preview above template attributes; template name in header; image row order **Image · Placement · Shape · Size**; full-width selects; removed separate generated-HTML panel in favor of preview + copy actions
+- **Live preview panel** – Dropped nested bordered preview box; iframe sized to signature content without extra bottom gap; panel no longer forced to a minimum viewport height
+- **Preview surfaces** – Transparent iframe backgrounds; preview document padding trimmed on the bottom edge; theme class on `html` applied in `useLayoutEffect` in `UserContext`
+- **Field style color display** – Swatches and placeholders use `resolveFieldTextColors` so inherited defaults (e.g. social links dark blue) match the preview
+- **Image export** – PNG/JPEG/WebP export respects the active app preview theme when rendering off-screen
+- **Template library cards** – Preview slots use the shared iframe component and scaling behavior
+- **Home showcase carousel** – Full-width marquee uses content-fit previews without incorrect clipping from viewport measurement
+- **i18n** – Template editor strings for drag hints, field style, saved state, light/dark text colors, and image short labels (`en.json`)
+
+### Removed
+
+- **`HtmlPanel`** – Generated HTML is no longer shown as a separate editor panel on the template edit page (copy actions remain on the live preview)
+
 ## [1.2.1] - 2026-06-12 — Signature image export
 
 ### Added
