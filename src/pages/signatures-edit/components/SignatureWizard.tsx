@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { fieldsFromRows, SIGNATURE_KEY_TO_LABEL } from '@/lib/templateFields';
 import { SignatureExportButton } from '@/components/SignatureExportButton';
 import { TemplatePickerGrid } from '@/pages/signatures-edit/components/TemplatePickerGrid';
+import { useAppPreviewTheme } from '@/hooks/useAppPreviewTheme';
+import { useSyncSignaturePreviewIframeDoc } from '@/hooks/useSyncSignaturePreviewIframeDoc';
 import { cn } from '@/lib/utils';
 import type { NewTemplate, SignatureValues } from '@/types/types';
 
@@ -53,6 +55,8 @@ export function SignatureWizard({
   onTemplateApply,
 }: SignatureWizardProps) {
   const { t } = useTranslation();
+  const previewTheme = useAppPreviewTheme();
+  useSyncSignaturePreviewIframeDoc(iframeRef, resolvedHtml, previewTheme, onIframeLoad);
   const dynamicKeys = fieldsFromRows(selectedTemplate.rows);
   const fieldConfig = dynamicKeys.map((key) => ({
     key,
@@ -187,17 +191,13 @@ export function SignatureWizard({
                     {t('signatures.reviewDescription')}
                   </p>
                 </div>
-                <div className="overflow-hidden rounded-lg border bg-[oklch(0.98_0.005_0)]">
+                <div className="overflow-hidden rounded-lg border border-border/50 bg-transparent">
                   <iframe
                     ref={iframeRef}
                     title="Signature preview"
-                    className="block min-h-[200px] w-full border-0"
+                    className="block min-h-[200px] w-full border-0 bg-transparent"
                     onLoad={onIframeLoad}
-                    srcDoc={
-                      '<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:16px;font-family:Arial,sans-serif;}</style></head><body>' +
-                      resolvedHtml +
-                      '</body></html>'
-                    }
+                    style={{ colorScheme: previewTheme === 'dark' ? 'dark' : 'light' }}
                     sandbox="allow-same-origin"
                   />
                 </div>

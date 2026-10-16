@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ColorInput } from '@/components/ui/color-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -10,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { resolveFieldTextColors } from '@/lib/signatureTextColors';
 import {
   isRowFieldTextCustomized,
   isRowFieldTextPropertyCustomized,
@@ -40,6 +42,7 @@ export function TemplateFieldStylePanel({
   onUpdateText,
 }: TemplateFieldStylePanelProps) {
   const { t } = useTranslation();
+  const fieldTextColors = resolveFieldTextColors(field, templateText);
 
   return (
     <div className="space-y-5">
@@ -82,114 +85,141 @@ export function TemplateFieldStylePanel({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="field-text-font" className="text-sm font-medium">
-            {t('templateEditor.font')}
-          </Label>
-          <Input
-            id="field-text-font"
-            value={
-              isRowFieldTextPropertyCustomized(field, 'font')
-                ? field.text.font ?? ''
-                : ''
-            }
-            onChange={(e) =>
-              onUpdateText({
-                font: e.target.value === '' ? templateText.font : e.target.value,
-              })
-            }
-            placeholder={templateText.font}
-          />
+        <div className="grid grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-4">
+          <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="field-text-font" className="text-sm font-medium">
+              {t('templateEditor.textFont')}
+            </Label>
+            <Input
+              id="field-text-font"
+              value={
+                isRowFieldTextPropertyCustomized(field, 'font')
+                  ? field.text.font ?? ''
+                  : ''
+              }
+              onChange={(e) =>
+                onUpdateText({
+                  font: e.target.value === '' ? templateText.font : e.target.value,
+                })
+              }
+              placeholder={templateText.font}
+            />
+          </div>
+
+          <div className="min-w-0 space-y-2">
+            <Label htmlFor="field-text-shape" className="text-sm font-medium">
+              {t('templateEditor.textStyle')}
+            </Label>
+            <Select
+              value={
+                isRowFieldTextPropertyCustomized(field, 'shape')
+                  ? field.text.shape!
+                  : TEMPLATE_TEXT_DEFAULT_OPTION
+              }
+              onValueChange={(value) =>
+                onUpdateText({
+                  shape:
+                    value === TEMPLATE_TEXT_DEFAULT_OPTION
+                      ? templateText.shape
+                      : (value as TemplateTextConfig['shape']),
+                })
+              }
+            >
+              <SelectTrigger id="field-text-shape" className="h-10 w-full">
+                <SelectValue placeholder={t('templateEditor.default')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TEMPLATE_TEXT_DEFAULT_OPTION}>
+                  {t('templateEditor.default')}
+                </SelectItem>
+                {TEXT_SHAPES.map((shape) => (
+                  <SelectItem key={shape} value={shape}>
+                    {t(`templateEditor.textShape.${shape}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="min-w-0 space-y-2">
+            <Label htmlFor="field-text-size" className="text-sm font-medium">
+              {t('templateEditor.textSize')}
+            </Label>
+            <Select
+              value={
+                isRowFieldTextPropertyCustomized(field, 'size')
+                  ? field.text.size!
+                  : TEMPLATE_TEXT_DEFAULT_OPTION
+              }
+              onValueChange={(value) =>
+                onUpdateText({
+                  size:
+                    value === TEMPLATE_TEXT_DEFAULT_OPTION
+                      ? templateText.size
+                      : (value as TemplateTextConfig['size']),
+                })
+              }
+            >
+              <SelectTrigger id="field-text-size" className="h-10 w-full">
+                <SelectValue placeholder={t('templateEditor.default')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TEMPLATE_TEXT_DEFAULT_OPTION}>
+                  {t('templateEditor.default')}
+                </SelectItem>
+                {TEMPLATE_SIZES.map((size) => (
+                  <SelectItem key={size} value={size}>
+                    {t(`templateEditor.size.${size}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="field-text-color" className="text-sm font-medium">
-            {t('templateEditor.color')}
+          <Label htmlFor="field-text-color-light" className="text-sm font-medium">
+            {t('templateEditor.textColorLight')}
           </Label>
-          <Input
-            id="field-text-color"
+          <ColorInput
+            id="field-text-color-light"
             value={
               isRowFieldTextPropertyCustomized(field, 'color')
                 ? field.text.color ?? ''
                 : ''
             }
+            swatchFallback={fieldTextColors.light}
             onChange={(e) =>
               onUpdateText({
                 color: e.target.value === '' ? templateText.color : e.target.value,
               })
             }
-            placeholder={templateText.color}
+            placeholder={fieldTextColors.light}
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="field-text-size" className="text-sm font-medium">
-            {t('templateEditor.textSize')}
+          <Label htmlFor="field-text-color-dark" className="text-sm font-medium">
+            {t('templateEditor.textColorDark')}
           </Label>
-          <Select
+          <ColorInput
+            id="field-text-color-dark"
             value={
-              isRowFieldTextPropertyCustomized(field, 'size')
-                ? field.text.size!
-                : TEMPLATE_TEXT_DEFAULT_OPTION
+              isRowFieldTextPropertyCustomized(field, 'colorDark')
+                ? field.text.colorDark ?? ''
+                : ''
             }
-            onValueChange={(value) =>
+            swatchFallback={fieldTextColors.dark}
+            onChange={(e) =>
               onUpdateText({
-                size:
-                  value === TEMPLATE_TEXT_DEFAULT_OPTION
-                    ? templateText.size
-                    : (value as TemplateTextConfig['size']),
+                colorDark:
+                  e.target.value === ''
+                    ? templateText.colorDark
+                    : e.target.value,
               })
             }
-          >
-            <SelectTrigger id="field-text-size" className="h-10">
-              <SelectValue placeholder={t('templateEditor.default')} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TEMPLATE_TEXT_DEFAULT_OPTION}>
-                {t('templateEditor.default')}
-              </SelectItem>
-              {TEMPLATE_SIZES.map((size) => (
-                <SelectItem key={size} value={size}>
-                  {t(`templateEditor.size.${size}`)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="field-text-shape" className="text-sm font-medium">
-            {t('templateEditor.textStyle')}
-          </Label>
-          <Select
-            value={
-              isRowFieldTextPropertyCustomized(field, 'shape')
-                ? field.text.shape!
-                : TEMPLATE_TEXT_DEFAULT_OPTION
-            }
-            onValueChange={(value) =>
-              onUpdateText({
-                shape:
-                  value === TEMPLATE_TEXT_DEFAULT_OPTION
-                    ? templateText.shape
-                    : (value as TemplateTextConfig['shape']),
-              })
-            }
-          >
-            <SelectTrigger id="field-text-shape" className="h-10">
-              <SelectValue placeholder={t('templateEditor.default')} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TEMPLATE_TEXT_DEFAULT_OPTION}>
-                {t('templateEditor.default')}
-              </SelectItem>
-              {TEXT_SHAPES.map((shape) => (
-                <SelectItem key={shape} value={shape}>
-                  {t(`templateEditor.textShape.${shape}`)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder={fieldTextColors.dark}
+          />
         </div>
       </div>
     </div>

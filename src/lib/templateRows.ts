@@ -35,6 +35,7 @@ export function normalizeTemplateTextConfig(
   return {
     font: text?.font ?? defaultText.font,
     color: text?.color ?? defaultText.color,
+    colorDark: text?.colorDark ?? defaultText.colorDark,
     size: text?.size ?? defaultText.size,
     shape: normalizeTextShape(text?.shape ?? defaultText.shape),
   };
@@ -56,6 +57,9 @@ function toTextOverrides(
 
   if (resolved.font !== templateText.font) overrides.font = resolved.font;
   if (resolved.color !== templateText.color) overrides.color = resolved.color;
+  if (resolved.colorDark !== templateText.colorDark) {
+    overrides.colorDark = resolved.colorDark;
+  }
   if (resolved.size !== templateText.size) overrides.size = resolved.size;
   if (resolved.shape !== templateText.shape) overrides.shape = resolved.shape;
 
@@ -82,6 +86,17 @@ export function applyFieldTextPatch(
       delete next.color;
     } else {
       next.color = patch.color;
+    }
+  }
+
+  if ('colorDark' in patch) {
+    if (
+      patch.colorDark === undefined ||
+      patch.colorDark === templateText.colorDark
+    ) {
+      delete next.colorDark;
+    } else {
+      next.colorDark = patch.colorDark;
     }
   }
 

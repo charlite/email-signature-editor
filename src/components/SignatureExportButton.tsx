@@ -9,6 +9,7 @@ import {
   openSignatureImageExportTab,
   type SignatureImageFormat,
 } from '@/lib/signatureImageExport';
+import { useAppPreviewTheme } from '@/hooks/useAppPreviewTheme';
 import { copyTextToClipboard } from '@/utils/utils';
 import { cn } from '@/lib/utils';
 
@@ -35,6 +36,7 @@ export function SignatureExportButton({
   stopPropagation = false,
 }: SignatureExportButtonProps) {
   const { t } = useTranslation();
+  const previewTheme = useAppPreviewTheme();
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -120,7 +122,7 @@ export function SignatureExportButton({
     const exportWindow = openSignatureImageExportTab();
 
     void runExport(() =>
-      downloadSignatureImage(html, format, fileName, exportWindow)
+      downloadSignatureImage(html, format, fileName, exportWindow, previewTheme)
     );
   };
 

@@ -5,6 +5,7 @@ import type { NewTemplate, SignatureValues } from '@/types/types';
 const modernText = {
   font: 'Segoe UI, Arial, sans-serif',
   color: '#222222',
+  colorDark: '#ffffff',
   size: 'md' as const,
   shape: 'normal' as const,
 };
@@ -12,6 +13,7 @@ const modernText = {
 const minimalText = {
   font: 'Georgia, serif',
   color: '#333333',
+  colorDark: '#ffffff',
   size: 'md' as const,
   shape: 'normal' as const,
 };
@@ -19,6 +21,7 @@ const minimalText = {
 const compactText = {
   font: 'Arial, sans-serif',
   color: '#333333',
+  colorDark: '#ffffff',
   size: 'sm' as const,
   shape: 'normal' as const,
 };

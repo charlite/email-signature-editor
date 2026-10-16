@@ -42,7 +42,7 @@ export function LibraryCard({
           className
         )}
       >
-        <div className="relative border-b border-border/60 bg-muted/30 transition-colors group-hover:bg-muted/50">
+        <div className="relative border-b border-border/60 bg-transparent">
           {content}
         </div>
         <CardContent className="p-3 sm:p-4">

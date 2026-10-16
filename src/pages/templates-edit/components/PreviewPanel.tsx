@@ -2,6 +2,9 @@ import { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Copy, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAppPreviewTheme } from '@/hooks/useAppPreviewTheme';
+import { useSyncSignaturePreviewIframeDoc } from '@/hooks/useSyncSignaturePreviewIframeDoc';
+import { measureSignatureIntrinsicSize } from '@/lib/signaturePreviewIframe';
 import { cn } from '@/lib/utils';
 
 interface PreviewPanelProps {
@@ -20,18 +23,21 @@ export function PreviewPanel({
   className,
 }: PreviewPanelProps) {
   const { t } = useTranslation();
+  const previewTheme = useAppPreviewTheme();
 
   const autoResize = useCallback(() => {
     const iframe = iframeRef.current;
-    if (!iframe?.contentDocument?.body) return;
+    const doc = iframe?.contentDocument;
+    if (!iframe || !doc?.body) return;
     try {
-      const doc = iframe.contentDocument;
-      const height = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
-      iframe.style.height = `${Math.max(height, 120)}px`;
+      const { height } = measureSignatureIntrinsicSize(doc, iframe);
+      iframe.style.height = `${height}px`;
     } catch {
       // cross-origin safety
     }
   }, [iframeRef]);
+
+  useSyncSignaturePreviewIframeDoc(iframeRef, resolvedHtml, previewTheme, autoResize);
 
   useEffect(() => {
     const timer = window.setTimeout(autoResize, 50);
@@ -41,7 +47,7 @@ export function PreviewPanel({
   return (
     <div
       className={cn(
-        'flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm',
+        'flex flex-col overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm',
         className
       )}
     >
@@ -69,23 +75,15 @@ export function PreviewPanel({
           {copied ? t('actions.copied') : t('signatures.copyForGmail')}
         </Button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto p-4 sm:p-6">
-        <div
-          className="preview-display mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-border/50 shadow-inner"
-        >
-          <iframe
-            ref={iframeRef}
-            title={t('templateEditor.previewTitle')}
-            className="block w-full border-0"
-            onLoad={autoResize}
-            srcDoc={
-              '<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;padding:20px;font-family:Arial,sans-serif;}</style></head><body>' +
-              resolvedHtml +
-              '</body></html>'
-            }
-            sandbox="allow-same-origin"
-          />
-        </div>
+      <div className="overflow-auto px-4 pt-4 sm:px-5 sm:pt-5">
+        <iframe
+          ref={iframeRef}
+          title={t('templateEditor.previewTitle')}
+          className="mx-auto block w-full max-w-2xl border-0 bg-transparent"
+          onLoad={autoResize}
+          style={{ colorScheme: previewTheme === 'dark' ? 'dark' : 'light' }}
+          sandbox="allow-same-origin"
+        />
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { toCanvas } from 'html-to-image';
+import type { SignaturePreviewTheme } from '@/lib/signaturePreviewDocument';
 import {
-  SIGNATURE_PREVIEW_DOC_PREFIX,
-  SIGNATURE_PREVIEW_DOC_SUFFIX,
+  buildSignaturePreviewSrcDoc,
   SIGNATURE_PREVIEW_MAX_WIDTH,
   measureSignaturePreviewSize,
 } from './signaturePreviewIframe';
@@ -104,12 +104,16 @@ function getCaptureNode(root: ParentNode): HTMLElement {
   return (table as HTMLElement | null) ?? (root as HTMLElement);
 }
 
-async function createExportHost(html: string): Promise<{
+async function createExportHost(
+  html: string,
+  theme: SignaturePreviewTheme
+): Promise<{
   node: HTMLElement;
   cleanup: () => void;
 }> {
   const host = document.createElement('div');
   host.style.cssText = EXPORT_HOST_STYLES;
+  host.style.colorScheme = theme;
   host.innerHTML = html;
   document.body.appendChild(host);
 
@@ -124,7 +128,10 @@ async function createExportHost(html: string): Promise<{
   };
 }
 
-async function createExportIframe(html: string): Promise<{
+async function createExportIframe(
+  html: string,
+  theme: SignaturePreviewTheme
+): Promise<{
   node: HTMLElement;
   cleanup: () => void;
 }> {
@@ -141,7 +148,7 @@ async function createExportIframe(html: string): Promise<{
   }
 
   doc.open();
-  doc.write(SIGNATURE_PREVIEW_DOC_PREFIX + html + SIGNATURE_PREVIEW_DOC_SUFFIX);
+  doc.write(buildSignaturePreviewSrcDoc(html, theme));
   doc.close();
 
   await waitForIframeLoad(iframe);
@@ -150,7 +157,8 @@ async function createExportIframe(html: string): Promise<{
 
   const { width, height } = measureSignaturePreviewSize(
     iframe,
-    SIGNATURE_PREVIEW_MAX_WIDTH
+    SIGNATURE_PREVIEW_MAX_WIDTH,
+    { clampHeight: false, clampWidth: false }
   );
   iframe.style.width = `${width}px`;
   iframe.style.height = `${height}px`;
@@ -164,14 +172,17 @@ async function createExportIframe(html: string): Promise<{
   };
 }
 
-async function captureForExport(html: string): Promise<{
+async function captureForExport(
+  html: string,
+  theme: SignaturePreviewTheme
+): Promise<{
   node: HTMLElement;
   cleanup: () => void;
 }> {
   try {
-    return await createExportHost(html);
+    return await createExportHost(html, theme);
   } catch {
-    return createExportIframe(html);
+    return createExportIframe(html, theme);
   }
 }
 
@@ -201,9 +212,10 @@ async function nodeToBlob(
 
 export async function generateSignatureImageBlob(
   html: string,
-  format: SignatureImageFormat
+  format: SignatureImageFormat,
+  theme: SignaturePreviewTheme = 'light'
 ): Promise<Blob> {
-  const target = await captureForExport(html);
+  const target = await captureForExport(html, theme);
   try {
     return await nodeToBlob(target.node, format);
   } finally {
@@ -263,7 +275,8 @@ export async function downloadSignatureImage(
   html: string,
   format: SignatureImageFormat,
   fileName: string,
-  exportWindow?: Window | null
+  exportWindow?: Window | null,
+  theme: SignaturePreviewTheme = 'light'
 ): Promise<void> {
   if (!exportWindow || exportWindow.closed) {
     throw new Error(
@@ -288,7 +301,7 @@ export async function downloadSignatureImage(
 </html>`);
   exportWindow.document.close();
 
-  const blob = await generateSignatureImageBlob(html, format);
+  const blob = await generateSignatureImageBlob(html, format, theme);
 
   if (exportWindow.closed) {
     throw new Error('Export tab was closed before the image finished generating.');
