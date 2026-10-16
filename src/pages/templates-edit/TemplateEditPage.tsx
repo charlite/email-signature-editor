@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Save, Trash2, X } from 'lucide-react';
-import { HtmlPanel } from '@/pages/templates-edit/components/HtmlPanel';
+import { Link } from 'react-router';
+import { arrayMove } from '@dnd-kit/sortable';
+import { ArrowLeft, Plus, Save } from 'lucide-react';
 import { PreviewPanel } from '@/pages/templates-edit/components/PreviewPanel';
+import { TemplateFieldStylePanel } from '@/pages/templates-edit/components/TemplateFieldStylePanel';
+import { TemplateSortableRowsList } from '@/pages/templates-edit/components/TemplateSortableRowsList';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -19,29 +21,39 @@ import { buildTemplateHtmlFromSchema } from '@/lib/templates/builder';
 import {
   applyFieldTextPatch,
   createTemplateRowField,
-  isRowFieldTextCustomized,
-  isRowFieldTextPropertyCustomized,
   normalizeTemplateRows,
-  TEMPLATE_TEXT_DEFAULT_OPTION,
 } from '@/lib/templateRows';
-import { cn } from '@/lib/utils';
 import {
   DEFAULT_NEW_TEMPLATE,
   DEFAULT_SIGNATURE_VALUES,
-  TEMPLATE_BUILDER_FIELDS,
   type NewTemplate,
   type TemplateBuilderField,
+  type TemplateRowField,
+  type TemplateRows,
   type TemplateTextConfig,
 } from '@/types/types';
-import {
-  copyPreviewForGmail,
-  copyTextToClipboard,
-} from '@/utils/utils';
+import { createRowId } from '@/lib/createRowId';
+import { applyFieldDragOver } from '@/lib/fieldDragOver';
+import { copyPreviewForGmail } from '@/utils/utils';
 
 const TEMPLATE_SIZES = ['xs', 'sm', 'md', 'lg'] as const;
 const IMAGE_SHAPES = ['rounded', 'circle', 'square'] as const;
 const IMAGE_PLACEMENTS = ['left', 'right', 'top'] as const;
 const TEXT_SHAPES = ['normal', 'bold', 'italic'] as const;
+
+function createFieldIdsByRowId(
+  rowIdsList: string[],
+  rows: TemplateRows
+): Record<string, string[]> {
+  return Object.fromEntries(
+    rowIdsList.map((rowId, rowIndex) => [
+      rowId,
+      rows[rowIndex].map(() => createRowId()),
+    ])
+  );
+}
+
+const INITIAL_TEMPLATE_ROW_IDS = DEFAULT_NEW_TEMPLATE.rows.map(() => createRowId());
 
 export default function TemplateEditPage() {
   const { t } = useTranslation();
@@ -50,7 +62,6 @@ export default function TemplateEditPage() {
     saveTemplate,
     selectedTemplate,
     setTemplateHtml,
-    templateHtml,
   } = useUserContext();
 
   const builderFieldLabel = useCallback(
@@ -65,23 +76,126 @@ export default function TemplateEditPage() {
     config: DEFAULT_NEW_TEMPLATE.config,
     rows: DEFAULT_NEW_TEMPLATE.rows,
   }));
-  const [activeSection, setActiveSection] = useState<'attributes' | 'rows'>('attributes');
   const [selectedField, setSelectedField] = useState<{
     rowIndex: number;
     fieldIndex: number;
   } | null>(null);
 
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
-  const [copiedSection, setCopiedSection] = useState<'html' | 'preview' | null>(null);
+  const [copiedPreview, setCopiedPreview] = useState(false);
+  const [rowIds, setRowIds] = useState<string[]>(INITIAL_TEMPLATE_ROW_IDS);
+  const [fieldIdsByRowId, setFieldIdsByRowId] = useState<Record<string, string[]>>(
+    () => createFieldIdsByRowId(INITIAL_TEMPLATE_ROW_IDS, DEFAULT_NEW_TEMPLATE.rows)
+  );
+  const [dragRowById, setDragRowById] = useState<
+    Map<string, TemplateRows[number]> | null
+  >(null);
+  const [previewRows, setPreviewRows] = useState<TemplateRows | null>(null);
+  const [fieldDragState, setFieldDragState] = useState<{
+    snapshot: Map<string, TemplateRowField>;
+  } | null>(null);
+  const rowIdsAtDragStartRef = useRef<string[]>([]);
+  const selectedRowIdAtDragStartRef = useRef<string | null>(null);
+  const fieldIdsByRowIdAtDragStartRef = useRef<Record<string, string[]>>({});
+  const selectedFieldIdAtDragStartRef = useRef<string | null>(null);
+  const fieldIdsByRowIdRef = useRef(fieldIdsByRowId);
+  fieldIdsByRowIdRef.current = fieldIdsByRowId;
+
+  const rowsForHtml = previewRows ?? builderTemplate.rows;
+
+  const generatedHtml = useMemo(
+    () => buildTemplateHtmlFromSchema({ ...builderTemplate, rows: rowsForHtml }),
+    [builderTemplate, rowsForHtml]
+  );
+
+  const displayRows = useMemo(() => {
+    if (dragRowById) {
+      return rowIds.map((id) => dragRowById.get(id)!);
+    }
+    return builderTemplate.rows;
+  }, [rowIds, dragRowById, builderTemplate.rows]);
+
+  const resolveBuilderRowIndex = useCallback(
+    (displayIndex: number) => {
+      const id = rowIds[displayIndex];
+      const row = dragRowById?.get(id) ?? builderTemplate.rows[displayIndex];
+      const builderIndex = builderTemplate.rows.findIndex((item) => item === row);
+      return builderIndex >= 0 ? builderIndex : displayIndex;
+    },
+    [rowIds, dragRowById, builderTemplate.rows]
+  );
+
+  const getFieldIds = useCallback(
+    (displayIndex: number) => fieldIdsByRowId[rowIds[displayIndex]] ?? [],
+    [fieldIdsByRowId, rowIds]
+  );
+
+  const getRowFields = useCallback(
+    (displayIndex: number) => {
+      const rowId = rowIds[displayIndex];
+      const ids = fieldIdsByRowId[rowId] ?? [];
+      const builderIndex = resolveBuilderRowIndex(displayIndex);
+      const builderFields = builderTemplate.rows[builderIndex];
+
+      if (fieldDragState) {
+        return ids.map((id) => fieldDragState.snapshot.get(id)!);
+      }
+
+      return ids.map((_, index) => builderFields[index]);
+    },
+    [
+      rowIds,
+      fieldIdsByRowId,
+      fieldDragState,
+      resolveBuilderRowIndex,
+      builderTemplate.rows,
+    ]
+  );
+
+  const findRowIdForFieldId = useCallback(
+    (fieldId: string) =>
+      rowIds.find((rowId) => fieldIdsByRowId[rowId]?.includes(fieldId)),
+    [rowIds, fieldIdsByRowId]
+  );
+
+  const totalFieldCount = useMemo(
+    () =>
+      rowIds.reduce(
+        (sum, rowId) => sum + (fieldIdsByRowId[rowId]?.length ?? 0),
+        0
+      ),
+    [rowIds, fieldIdsByRowId]
+  );
+
+  const canDragFields = rowIds.length > 1 || totalFieldCount > 1;
 
   const selectedRowField =
-    selectedField === null
+    selectedField === null || fieldDragState !== null
       ? null
-      : builderTemplate.rows[selectedField.rowIndex]?.[selectedField.fieldIndex] ?? null;
+      : getRowFields(selectedField.rowIndex)[selectedField.fieldIndex] ?? null;
 
-  const generatedHtml = useMemo(() => buildTemplateHtmlFromSchema(builderTemplate), [builderTemplate]);
+  const freezePreview = useCallback(() => {
+    setPreviewRows((current) => current ?? builderTemplate.rows);
+  }, [builderTemplate.rows]);
+
+  const maybeClearPreview = useCallback(
+    (options: { rowDragCleared?: boolean; fieldDragCleared?: boolean }) => {
+      const rowStillActive =
+        options.rowDragCleared === true ? false : dragRowById !== null;
+      const fieldStillActive =
+        options.fieldDragCleared === true ? false : fieldDragState !== null;
+      if (!rowStillActive && !fieldStillActive) {
+        setPreviewRows(null);
+      }
+    },
+    [dragRowById, fieldDragState]
+  );
 
   useEffect(() => {
+    const normalizedRows = normalizeTemplateRows(
+      selectedTemplate.rows,
+      selectedTemplate.config.text
+    );
     setBuilderTemplate({
       ...selectedTemplate,
       config: {
@@ -94,12 +208,15 @@ export default function TemplateEditPage() {
         },
         text: { ...selectedTemplate.config.text },
       },
-      rows: normalizeTemplateRows(
-        selectedTemplate.rows,
-        selectedTemplate.config.text
-      ),
+      rows: normalizedRows,
     });
     setSelectedField(null);
+    const nextRowIds = selectedTemplate.rows.map(() => createRowId());
+    setRowIds(nextRowIds);
+    setFieldIdsByRowId(createFieldIdsByRowId(nextRowIds, normalizedRows));
+    setDragRowById(null);
+    setPreviewRows(null);
+    setFieldDragState(null);
   }, [selectedTemplate]);
 
   useEffect(() => {
@@ -113,85 +230,354 @@ export default function TemplateEditPage() {
     });
   }, [builderTemplate, generatedHtml, saveTemplate]);
 
-  const markCopied = useCallback((section: 'html' | 'preview') => {
-    setCopiedSection(section);
-    window.setTimeout(() => setCopiedSection(null), 2000);
-  }, []);
-
-  const copyToClipboard = useCallback(async (text: string, section: 'html' | 'preview') => {
-    await copyTextToClipboard(text);
-    markCopied(section);
-  }, [markCopied]);
-
   const copyPreviewAsRichHtml = useCallback(async () => {
     await copyPreviewForGmail(previewIframeRef.current, resolvedHtml);
-    markCopied('preview');
-  }, [markCopied, resolvedHtml]);
+    setCopiedPreview(true);
+    window.setTimeout(() => setCopiedPreview(false), 2000);
+  }, [resolvedHtml]);
 
 
   const addRow = useCallback(() => {
+    const newRowId = createRowId();
     setBuilderTemplate((prev) => ({
       ...prev,
       rows: [...prev.rows, [createTemplateRowField('text')]],
     }));
+    setRowIds((ids) => [...ids, newRowId]);
+    setFieldIdsByRowId((prev) => ({
+      ...prev,
+      [newRowId]: [createRowId()],
+    }));
     setSelectedField(null);
   }, []);
 
-  const removeRow = useCallback((rowIndex: number) => {
-    setBuilderTemplate((prev) => {
-      if (prev.rows.length <= 1) return prev;
-      return {
-        ...prev,
-        rows: prev.rows.filter((_, index) => index !== rowIndex),
-      };
-    });
-    setSelectedField((current) =>
-      current?.rowIndex === rowIndex ? null : current
+  const removeRow = useCallback(
+    (displayIndex: number) => {
+      const builderIndex = resolveBuilderRowIndex(displayIndex);
+      const rowId = rowIds[displayIndex];
+
+      setBuilderTemplate((prev) => {
+        if (prev.rows.length <= 1) return prev;
+        return {
+          ...prev,
+          rows: prev.rows.filter((_, index) => index !== builderIndex),
+        };
+      });
+      setRowIds((ids) => ids.filter((_, index) => index !== displayIndex));
+      setFieldIdsByRowId((prev) => {
+        const next = { ...prev };
+        delete next[rowId];
+        return next;
+      });
+      setSelectedField((current) => {
+        if (!current) return null;
+        if (current.rowIndex === displayIndex) return null;
+        if (current.rowIndex > displayIndex) {
+          return { ...current, rowIndex: current.rowIndex - 1 };
+        }
+        return current;
+      });
+    },
+    [resolveBuilderRowIndex, rowIds]
+  );
+
+  const handleReorderRowIds = useCallback((fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    setRowIds((ids) => arrayMove(ids, fromIndex, toIndex));
+  }, []);
+
+  const handleRowDragStart = useCallback(() => {
+    rowIdsAtDragStartRef.current = [...rowIds];
+    selectedRowIdAtDragStartRef.current =
+      selectedField !== null ? rowIds[selectedField.rowIndex] ?? null : null;
+    freezePreview();
+    setDragRowById(
+      new Map(rowIds.map((id, index) => [id, builderTemplate.rows[index]]))
     );
-  }, []);
+  }, [rowIds, selectedField, builderTemplate.rows, freezePreview]);
 
-  const addFieldToRow = useCallback((rowIndex: number, field: TemplateBuilderField) => {
-    setBuilderTemplate((prev) => {
-      const nextRows = prev.rows.map((row, index) =>
-        index === rowIndex
-          ? [...row, createTemplateRowField(field)]
-          : row
-      );
-      const fieldIndex = nextRows[rowIndex].length - 1;
-      queueMicrotask(() => setSelectedField({ rowIndex, fieldIndex }));
-      return { ...prev, rows: nextRows };
-    });
-  }, []);
+  const commitRowOrder = useCallback(() => {
+    if (!dragRowById) return;
 
-  const removeFieldFromRow = useCallback((rowIndex: number, fieldIndex: number) => {
-    setBuilderTemplate((prev) => ({
-      ...prev,
-      rows: prev.rows.map((row, index) => {
-        if (index !== rowIndex) return row;
-        const next = row.filter((_, i) => i !== fieldIndex);
-        return next.length > 0
-          ? next
-          : [createTemplateRowField('text')];
-      }),
-    }));
-    setSelectedField((current) => {
-      if (!current) return null;
-      if (current.rowIndex !== rowIndex) return current;
-      if (current.fieldIndex === fieldIndex) return null;
-      if (current.fieldIndex > fieldIndex) {
-        return { rowIndex, fieldIndex: current.fieldIndex - 1 };
+    const nextRows = rowIds.map((id) => dragRowById.get(id)!);
+    setBuilderTemplate((prev) => ({ ...prev, rows: nextRows }));
+
+    const selectedRowId = selectedRowIdAtDragStartRef.current;
+    if (selectedField && selectedRowId) {
+      const nextRowIndex = rowIds.indexOf(selectedRowId);
+      if (nextRowIndex >= 0) {
+        setSelectedField({
+          rowIndex: nextRowIndex,
+          fieldIndex: selectedField.fieldIndex,
+        });
       }
-      return current;
+    }
+
+    setDragRowById(null);
+    rowIdsAtDragStartRef.current = [];
+    selectedRowIdAtDragStartRef.current = null;
+    maybeClearPreview({ rowDragCleared: true });
+  }, [dragRowById, rowIds, selectedField, maybeClearPreview]);
+
+  const cancelRowDrag = useCallback(() => {
+    if (rowIdsAtDragStartRef.current.length > 0) {
+      setRowIds(rowIdsAtDragStartRef.current);
+    }
+    setDragRowById(null);
+    rowIdsAtDragStartRef.current = [];
+    selectedRowIdAtDragStartRef.current = null;
+    maybeClearPreview({ rowDragCleared: true });
+  }, [maybeClearPreview]);
+
+  const handleFieldDragStart = useCallback(() => {
+    const snapshot = new Map<string, TemplateRowField>();
+    rowIds.forEach((rowId, displayIndex) => {
+      const builderIndex = resolveBuilderRowIndex(displayIndex);
+      const ids = fieldIdsByRowId[rowId] ?? [];
+      const fields = builderTemplate.rows[builderIndex];
+      ids.forEach((id, index) => snapshot.set(id, fields[index]));
     });
-  }, []);
+
+    fieldIdsByRowIdAtDragStartRef.current = Object.fromEntries(
+      rowIds.map((rowId) => [rowId, [...(fieldIdsByRowId[rowId] ?? [])]])
+    );
+
+    if (selectedField) {
+      const rowId = rowIds[selectedField.rowIndex];
+      const ids = fieldIdsByRowId[rowId] ?? [];
+      selectedFieldIdAtDragStartRef.current =
+        ids[selectedField.fieldIndex] ?? null;
+    } else {
+      selectedFieldIdAtDragStartRef.current = null;
+    }
+
+    fieldIdsByRowIdRef.current = Object.fromEntries(
+      rowIds.map((rowId) => [rowId, [...(fieldIdsByRowId[rowId] ?? [])]])
+    );
+    setFieldDragState({ snapshot });
+    freezePreview();
+  }, [
+    rowIds,
+    fieldIdsByRowId,
+    resolveBuilderRowIndex,
+    builderTemplate.rows,
+    selectedField,
+    freezePreview,
+  ]);
+
+  const handleFieldDragOver = useCallback(
+    (activeFieldId: string, overId: string) => {
+      setFieldIdsByRowId((prev) => {
+        const next = applyFieldDragOver(
+          prev,
+          rowIds,
+          activeFieldId,
+          overId,
+          arrayMove
+        );
+        if (!next) return prev;
+        fieldIdsByRowIdRef.current = next;
+        return next;
+      });
+    },
+    [rowIds]
+  );
+
+  const commitFieldDrag = useCallback((idsMap: Record<string, string[]>) => {
+    if (!fieldDragState) return;
+
+    const rowEntries = rowIds.map((rowId) => ({
+      rowId,
+      ids: [...(idsMap[rowId] ?? [])],
+    }));
+
+    let keptRows = rowEntries.filter((entry) => entry.ids.length > 0);
+
+    if (keptRows.length === 0) {
+      const rowId = rowIds[0] ?? createRowId();
+      const newFieldId = createRowId();
+      const placeholder = createTemplateRowField('text');
+      fieldDragState.snapshot.set(newFieldId, placeholder);
+      keptRows = [{ rowId, ids: [newFieldId] }];
+    }
+
+    const newRowIds = keptRows.map((entry) => entry.rowId);
+    const newRows = keptRows.map((entry) =>
+      entry.ids.map((id) => fieldDragState.snapshot.get(id)!)
+    );
+
+    setBuilderTemplate((prev) => ({ ...prev, rows: newRows }));
+    setRowIds(newRowIds);
+    setFieldIdsByRowId(
+      Object.fromEntries(keptRows.map((entry) => [entry.rowId, entry.ids]))
+    );
+
+    if (dragRowById) {
+      setDragRowById(() => {
+        const next = new Map<string, TemplateRows[number]>();
+        keptRows.forEach((entry, index) => {
+          next.set(entry.rowId, newRows[index]);
+        });
+        return next;
+      });
+    }
+
+    const selectedFieldId = selectedFieldIdAtDragStartRef.current;
+    if (selectedFieldId) {
+      let nextSelection: { rowIndex: number; fieldIndex: number } | null = null;
+      for (let displayIndex = 0; displayIndex < keptRows.length; displayIndex++) {
+        const fieldIndex = keptRows[displayIndex].ids.indexOf(selectedFieldId);
+        if (fieldIndex >= 0) {
+          nextSelection = { rowIndex: displayIndex, fieldIndex };
+          break;
+        }
+      }
+      setSelectedField(nextSelection);
+    } else {
+      setSelectedField((current) => {
+        if (!current) return null;
+        const oldRowId = rowIds[current.rowIndex];
+        const newRowIndex = oldRowId ? newRowIds.indexOf(oldRowId) : -1;
+        if (newRowIndex < 0) return null;
+        const ids = keptRows[newRowIndex].ids;
+        if (current.fieldIndex >= ids.length) return null;
+        return { rowIndex: newRowIndex, fieldIndex: current.fieldIndex };
+      });
+    }
+
+    setFieldDragState(null);
+    fieldIdsByRowIdAtDragStartRef.current = {};
+    selectedFieldIdAtDragStartRef.current = null;
+    maybeClearPreview({ fieldDragCleared: true });
+  }, [fieldDragState, rowIds, dragRowById, maybeClearPreview]);
+
+  const finalizeAndCommitFieldDrag = useCallback(
+    ({ activeFieldId, overId }: { activeFieldId: string; overId: string | null }) => {
+      if (!fieldDragState) return;
+
+      let idsMap = fieldIdsByRowIdRef.current;
+
+      if (
+        overId &&
+        activeFieldId !== overId &&
+        !(
+          overId.startsWith('row-fields:') &&
+          (idsMap[overId.slice('row-fields:'.length)] ?? []).length > 0
+        )
+      ) {
+        const next = applyFieldDragOver(
+          idsMap,
+          rowIds,
+          activeFieldId,
+          overId,
+          arrayMove
+        );
+        if (next) {
+          idsMap = next;
+          fieldIdsByRowIdRef.current = next;
+          setFieldIdsByRowId(next);
+        }
+      }
+
+      commitFieldDrag(idsMap);
+    },
+    [fieldDragState, rowIds, commitFieldDrag]
+  );
+
+  const cancelFieldDrag = useCallback(() => {
+    const snapshot = fieldIdsByRowIdAtDragStartRef.current;
+    if (Object.keys(snapshot).length > 0) {
+      setFieldIdsByRowId((prev) => ({ ...prev, ...snapshot }));
+    }
+    setFieldDragState(null);
+    fieldIdsByRowIdAtDragStartRef.current = {};
+    selectedFieldIdAtDragStartRef.current = null;
+    maybeClearPreview({ fieldDragCleared: true });
+  }, [maybeClearPreview]);
+
+  const syncFieldSnapshot = useCallback(
+    (rowId: string, fields: TemplateRowField[]) => {
+      if (!fieldDragState) return;
+      setFieldDragState((state) => {
+        if (!state) return null;
+        const ids = fieldIdsByRowId[rowId] ?? [];
+        const nextSnapshot = new Map(state.snapshot);
+        ids.forEach((id, index) => {
+          if (fields[index]) nextSnapshot.set(id, fields[index]);
+        });
+        return { ...state, snapshot: nextSnapshot };
+      });
+    },
+    [fieldDragState, fieldIdsByRowId]
+  );
+
+  const addFieldToRow = useCallback(
+    (displayIndex: number, field: TemplateBuilderField) => {
+      const builderIndex = resolveBuilderRowIndex(displayIndex);
+      const rowId = rowIds[displayIndex];
+      const newFieldId = createRowId();
+
+      setBuilderTemplate((prev) => {
+        const nextRows = prev.rows.map((row, index) =>
+          index === builderIndex ? [...row, createTemplateRowField(field)] : row
+        );
+        const fieldIndex = nextRows[builderIndex].length - 1;
+        queueMicrotask(() => setSelectedField({ rowIndex: displayIndex, fieldIndex }));
+        syncFieldSnapshot(rowId, nextRows[builderIndex]);
+        return { ...prev, rows: nextRows };
+      });
+
+      setFieldIdsByRowId((prev) => ({
+        ...prev,
+        [rowId]: [...(prev[rowId] ?? []), newFieldId],
+      }));
+    },
+    [resolveBuilderRowIndex, rowIds, syncFieldSnapshot]
+  );
+
+  const removeFieldFromRow = useCallback(
+    (displayIndex: number, fieldIndex: number) => {
+      const builderIndex = resolveBuilderRowIndex(displayIndex);
+      const rowId = rowIds[displayIndex];
+      const fieldIds = fieldIdsByRowId[rowId] ?? [];
+
+      setBuilderTemplate((prev) => {
+        const nextRows = prev.rows.map((row, index) => {
+          if (index !== builderIndex) return row;
+          const next = row.filter((_, i) => i !== fieldIndex);
+          return next.length > 0 ? next : [createTemplateRowField('text')];
+        });
+        syncFieldSnapshot(rowId, nextRows[builderIndex]);
+        return { ...prev, rows: nextRows };
+      });
+
+      setFieldIdsByRowId((prev) => ({
+        ...prev,
+        [rowId]: fieldIds.filter((_, index) => index !== fieldIndex),
+      }));
+
+      setSelectedField((current) => {
+        if (!current) return null;
+        if (current.rowIndex !== displayIndex) return current;
+        if (current.fieldIndex === fieldIndex) return null;
+        if (current.fieldIndex > fieldIndex) {
+          return { rowIndex: displayIndex, fieldIndex: current.fieldIndex - 1 };
+        }
+        return current;
+      });
+    },
+    [resolveBuilderRowIndex, rowIds, fieldIdsByRowId, syncFieldSnapshot]
+  );
 
   const updateSelectedFieldText = useCallback(
     (patch: Partial<TemplateTextConfig>) => {
       if (!selectedField) return;
-      setBuilderTemplate((prev) => ({
-        ...prev,
-        rows: prev.rows.map((row, rowIndex) =>
-          rowIndex !== selectedField.rowIndex
+      const builderRowIndex = resolveBuilderRowIndex(selectedField.rowIndex);
+      const rowId = rowIds[selectedField.rowIndex];
+
+      setBuilderTemplate((prev) => {
+        const nextRows = prev.rows.map((row, rowIndex) =>
+          rowIndex !== builderRowIndex
             ? row
             : row.map((field, fieldIndex) =>
                 fieldIndex !== selectedField.fieldIndex
@@ -205,580 +591,409 @@ export default function TemplateEditPage() {
                       ),
                     }
               )
-        ),
-      }));
+        );
+        syncFieldSnapshot(rowId, nextRows[builderRowIndex]);
+        return { ...prev, rows: nextRows };
+      });
     },
-    [selectedField]
+    [selectedField, resolveBuilderRowIndex, rowIds, syncFieldSnapshot]
   );
 
   const resetSelectedFieldText = useCallback(() => {
     if (!selectedField) return;
-    setBuilderTemplate((prev) => ({
-      ...prev,
-      rows: prev.rows.map((row, rowIndex) =>
-        rowIndex !== selectedField.rowIndex
+    const builderRowIndex = resolveBuilderRowIndex(selectedField.rowIndex);
+    const rowId = rowIds[selectedField.rowIndex];
+
+    setBuilderTemplate((prev) => {
+      const nextRows = prev.rows.map((row, rowIndex) =>
+        rowIndex !== builderRowIndex
           ? row
           : row.map((field, fieldIndex) =>
               fieldIndex !== selectedField.fieldIndex
                 ? field
                 : { ...field, text: {} }
             )
-      ),
-    }));
-  }, [selectedField]);
-
-  const updateSelectedFieldLabel = useCallback(
-    (label: TemplateBuilderField) => {
-      if (!selectedField) return;
-      setBuilderTemplate((prev) => ({
-        ...prev,
-        rows: prev.rows.map((row, rowIndex) =>
-          rowIndex !== selectedField.rowIndex
-            ? row
-            : row.map((field, fieldIndex) =>
-                fieldIndex !== selectedField.fieldIndex
-                  ? field
-                  : { ...field, label }
-              )
-        ),
-      }));
-    },
-    [selectedField]
-  );
+      );
+      syncFieldSnapshot(rowId, nextRows[builderRowIndex]);
+      return { ...prev, rows: nextRows };
+    });
+  }, [selectedField, resolveBuilderRowIndex, rowIds, syncFieldSnapshot]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row lg:items-stretch">
-      <div className="flex w-full flex-col gap-4 lg:w-[400px] lg:shrink-0">
-        <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-card px-4 py-3">
+    <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-4 lg:gap-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-2">
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="-ml-2 h-8 w-fit gap-1.5 px-2 text-muted-foreground hover:text-foreground"
+          >
+            <Link to="/templates">
+              <ArrowLeft className="size-4" />
+              {t('templateEditor.backToTemplates')}
+            </Link>
+          </Button>
           <div>
-            <h2 className="text-base font-semibold tracking-tight">{t('templateEditor.title')}</h2>
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+              {t('templateEditor.title')}
+            </h1>
             <p className="text-sm text-muted-foreground">{t('templateEditor.subtitle')}</p>
           </div>
-
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={onSaveTemplate}
-            className="gap-1.5"
-          >
-            <Save className="size-3.5" />
-            {t('templateEditor.save')}
-          </Button>
         </div>
+        <Button
+          variant="default"
+          size="sm"
+          onClick={onSaveTemplate}
+          className="h-9 shrink-0 gap-1.5 self-start sm:self-center"
+        >
+          <Save className="size-3.5" />
+          {t('templateEditor.save')}
+        </Button>
+      </div>
 
-        <Card className="border values-card">
-          <CardContent className="space-y-5 py-4">
-            <div className="flex items-center gap-2 rounded-md border border-border bg-card p-1">
-              <Button
-                type="button"
-                variant={activeSection === 'attributes' ? 'default' : 'ghost'}
-                size="sm"
-                className="flex-1"
-                onClick={() => setActiveSection('attributes')}
-              >
-                {t('templateEditor.sections.attributes')}
-              </Button>
-              <Button
-                type="button"
-                variant={activeSection === 'rows' ? 'default' : 'ghost'}
-                size="sm"
-                className="flex-1"
-                onClick={() => setActiveSection('rows')}
-              >
-                {t('templateEditor.sections.rows')}
+      <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row lg:items-start">
+        <section
+          className="order-2 w-full min-w-0 lg:order-1 lg:max-h-[calc(100vh-7rem)] lg:w-[min(100%,28rem)] lg:shrink-0 lg:overflow-y-auto lg:pr-1"
+          aria-labelledby="template-rows-heading"
+        >
+          <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-sm sm:p-5">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <h2
+                  id="template-rows-heading"
+                  className="text-sm font-semibold tracking-tight"
+                >
+                  {t('templateEditor.sections.rows')}
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  {t('templateEditor.rowsHint')}
+                </p>
+              </div>
+              <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={addRow}>
+                <Plus className="size-3.5" />
+                {t('templateEditor.addRow')}
               </Button>
             </div>
 
-            {activeSection === 'attributes' ? (
-              <div className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="template-name" className="text-sm font-semibold">{t('templateEditor.templateName')}</Label>
-                  <Input
-                    id="template-name"
-                    value={builderTemplate.name}
-                    onChange={(e) =>
-                      setBuilderTemplate((prev) => ({ ...prev, name: e.target.value }))
-                    }
-                    placeholder={t('templateEditor.untitled')}
-                  />
-                </div>
+            <div className="space-y-3">
+              <TemplateSortableRowsList
+                rowIds={rowIds}
+                rows={displayRows}
+                onReorderIds={handleReorderRowIds}
+                onRowDragStart={handleRowDragStart}
+                onRowDragEnd={commitRowOrder}
+                onRowDragCancel={cancelRowDrag}
+                getFieldIds={getFieldIds}
+                getRowFields={getRowFields}
+                canDragFields={canDragFields}
+                onFieldDragOver={handleFieldDragOver}
+                onFieldDragStart={handleFieldDragStart}
+                onFieldDragEnd={finalizeAndCommitFieldDrag}
+                onFieldDragCancel={cancelFieldDrag}
+                findRowIdForFieldId={findRowIdForFieldId}
+                rowBlockProps={{
+                  selectedField,
+                  onSelectField: (rowIndex, fieldIndex) =>
+                    setSelectedField((current) =>
+                      current?.rowIndex === rowIndex &&
+                      current.fieldIndex === fieldIndex
+                        ? null
+                        : { rowIndex, fieldIndex }
+                    ),
+                  onAddField: addFieldToRow,
+                  onRemoveRow: removeRow,
+                  onRemoveField: removeFieldFromRow,
+                  builderFieldLabel,
+                }}
+              />
+            </div>
+          </div>
+        </section>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="image-url" className="text-sm font-semibold">{t('templateEditor.imageUrl')}</Label>
-                    <Input
-                      id="image-url"
-                      value={builderTemplate.config.image.url}
-                      onChange={(e) =>
-                        setBuilderTemplate((prev) => ({
-                          ...prev,
-                          config: {
-                            ...prev.config,
-                            image: { ...prev.config.image, url: e.target.value },
-                          },
-                        }))
-                      }
-                      placeholder={t('templateEditor.imageUrlPlaceholder')}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="image-placement" className="text-sm font-semibold">{t('templateEditor.imagePlacement')}</Label>
-                    <Select
-                      value={builderTemplate.config.image.placement}
-                      onValueChange={(value) =>
-                        setBuilderTemplate((prev) => ({
-                          ...prev,
-                          config: {
-                            ...prev.config,
-                            image: { ...prev.config.image, placement: value as NewTemplate['config']['image']['placement'] },
-                          },
-                        }))
-                      }
-                    >
-                      <SelectTrigger id="image-placement" className="h-10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {IMAGE_PLACEMENTS.map((placement) => (
-                          <SelectItem key={placement} value={placement}>
-                            {t(`templateEditor.placement.${placement}`)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="image-size" className="text-sm font-semibold">{t('templateEditor.imageSize')}</Label>
-                    <Select
-                      value={builderTemplate.config.image.size}
-                      onValueChange={(value) =>
-                        setBuilderTemplate((prev) => ({
-                          ...prev,
-                          config: {
-                            ...prev.config,
-                            image: { ...prev.config.image, size: value as NewTemplate['config']['image']['size'] },
-                          },
-                        }))
-                      }
-                    >
-                      <SelectTrigger id="image-size" className="h-10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TEMPLATE_SIZES.map((size) => (
-                          <SelectItem key={size} value={size}>
-                            {t(`templateEditor.size.${size}`)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="image-shape" className="text-sm font-semibold">{t('templateEditor.imageShape')}</Label>
-                    <Select
-                      value={builderTemplate.config.image.shape}
-                      onValueChange={(value) =>
-                        setBuilderTemplate((prev) => ({
-                          ...prev,
-                          config: {
-                            ...prev.config,
-                            image: { ...prev.config.image, shape: value as NewTemplate['config']['image']['shape'] },
-                          },
-                        }))
-                      }
-                    >
-                      <SelectTrigger id="image-shape" className="h-10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {IMAGE_SHAPES.map((shape) => (
-                          <SelectItem key={shape} value={shape}>
-                            {t(`templateEditor.shape.${shape}`)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="text-font" className="text-sm font-semibold">{t('templateEditor.textFont')}</Label>
-                    <Input
-                      id="text-font"
-                      value={builderTemplate.config.text.font}
-                      onChange={(e) =>
-                        setBuilderTemplate((prev) => ({
-                          ...prev,
-                          config: {
-                            ...prev.config,
-                            text: { ...prev.config.text, font: e.target.value },
-                          },
-                        }))
-                      }
-                      placeholder={t('templateEditor.textFontPlaceholder')}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="text-color" className="text-sm font-semibold">{t('templateEditor.textColor')}</Label>
-                    <Input
-                      id="text-color"
-                      value={builderTemplate.config.text.color}
-                      onChange={(e) =>
-                        setBuilderTemplate((prev) => ({
-                          ...prev,
-                          config: {
-                            ...prev.config,
-                            text: { ...prev.config.text, color: e.target.value },
-                          },
-                        }))
-                      }
-                      placeholder={t('templateEditor.textColorPlaceholder')}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="text-size" className="text-sm font-semibold">{t('templateEditor.textSize')}</Label>
-                    <Select
-                      value={builderTemplate.config.text.size}
-                      onValueChange={(value) =>
-                        setBuilderTemplate((prev) => ({
-                          ...prev,
-                          config: {
-                            ...prev.config,
-                            text: { ...prev.config.text, size: value as NewTemplate['config']['text']['size'] },
-                          },
-                        }))
-                      }
-                    >
-                      <SelectTrigger id="text-size" className="h-10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TEMPLATE_SIZES.map((size) => (
-                          <SelectItem key={size} value={size}>
-                            {t(`templateEditor.size.${size}`)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="text-shape" className="text-sm font-semibold">{t('templateEditor.textStyle')}</Label>
-                    <Select
-                      value={builderTemplate.config.text.shape}
-                      onValueChange={(value) =>
-                        setBuilderTemplate((prev) => ({
-                          ...prev,
-                          config: {
-                            ...prev.config,
-                            text: { ...prev.config.text, shape: value as NewTemplate['config']['text']['shape'] },
-                          },
-                        }))
-                      }
-                    >
-                      <SelectTrigger id="text-shape" className="h-10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TEXT_SHAPES.map((shape) => (
-                          <SelectItem key={shape} value={shape}>
-                            {t(`templateEditor.textShape.${shape}`)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-semibold">{t('templateEditor.templateRows')}</Label>
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={addRow}>
-                    <Plus className="size-3.5" />
-                    {t('templateEditor.addRow')}
-                  </Button>
-                </div>
-
-                <div className="space-y-3">
-                  {builderTemplate.rows.map((row, rowIndex) => (
-                    <div key={`row-${rowIndex}`} className="rounded-md border border-border bg-card p-3">
-                      <div className="mb-2 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">
-                            {t('templateEditor.rowLabel', { number: rowIndex + 1 })}
-                          </span>
-
-                          <Select onValueChange={(value) => addFieldToRow(rowIndex, value as TemplateBuilderField)}>
-                            <SelectTrigger className="h-8 w-[180px] border border-input bg-secondary text-xs">
-                              <SelectValue placeholder={t('templateEditor.addField')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {TEMPLATE_BUILDER_FIELDS.map((field) => (
-                                <SelectItem key={field} value={field}>
-                                  {builderFieldLabel(field)}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => removeRow(rowIndex)}
-                          disabled={builderTemplate.rows.length === 1}
-                          aria-label={t('templateEditor.deleteRow')}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        {row.map((field, fieldIndex) => {
-                          const isSelected =
-                            selectedField?.rowIndex === rowIndex &&
-                            selectedField.fieldIndex === fieldIndex;
-                          const isCustomized = isRowFieldTextCustomized(field);
-
-                          return (
-                            <div
-                              key={`${rowIndex}-${fieldIndex}`}
-                              className={cn(
-                                'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs',
-                                isSelected
-                                  ? 'bg-primary text-primary-foreground'
-                                  : 'bg-muted',
-                                isCustomized && !isSelected && 'ring-1 ring-primary/40'
-                              )}
-                            >
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setSelectedField({ rowIndex, fieldIndex })
-                                }
-                                className="font-medium"
-                              >
-                                {builderFieldLabel(field.label)}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  removeFieldFromRow(rowIndex, fieldIndex)
-                                }
-                                aria-label={t('templateEditor.removeField')}
-                                className="opacity-70 hover:opacity-100"
-                              >
-                                <X className="size-3" />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {selectedRowField && selectedField && (
-                  <div className="space-y-4 rounded-md border border-border bg-muted/30 p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <Label className="text-sm font-semibold">{t('templateEditor.fieldStyle')}</Label>
-                        <p className="text-xs text-muted-foreground">
-                          {t('templateEditor.fieldStyleHint')}
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={resetSelectedFieldText}
-                        disabled={!isRowFieldTextCustomized(selectedRowField)}
-                      >
-                        {t('templateEditor.resetToDefault')}
-                      </Button>
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor="field-label" className="text-sm font-semibold">
-                          {t('templateEditor.field')}
-                        </Label>
-                        <Select
-                          value={selectedRowField.label}
-                          onValueChange={(value) =>
-                            updateSelectedFieldLabel(value as TemplateBuilderField)
-                          }
-                        >
-                          <SelectTrigger id="field-label" className="h-10">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {TEMPLATE_BUILDER_FIELDS.map((field) => (
-                              <SelectItem key={field} value={field}>
-                                {builderFieldLabel(field)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="field-text-font" className="text-sm font-semibold">
-                          {t('templateEditor.font')}
-                        </Label>
-                        <Input
-                          id="field-text-font"
-                          value={
-                            isRowFieldTextPropertyCustomized(
-                              selectedRowField,
-                              'font'
-                            )
-                              ? selectedRowField.text.font ?? ''
-                              : ''
-                          }
-                          onChange={(e) =>
-                            updateSelectedFieldText({
-                              font:
-                                e.target.value === ''
-                                  ? builderTemplate.config.text.font
-                                  : e.target.value,
-                            })
-                          }
-                          placeholder={builderTemplate.config.text.font}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="field-text-color" className="text-sm font-semibold">
-                          {t('templateEditor.color')}
-                        </Label>
-                        <Input
-                          id="field-text-color"
-                          value={
-                            isRowFieldTextPropertyCustomized(
-                              selectedRowField,
-                              'color'
-                            )
-                              ? selectedRowField.text.color ?? ''
-                              : ''
-                          }
-                          onChange={(e) =>
-                            updateSelectedFieldText({
-                              color:
-                                e.target.value === ''
-                                  ? builderTemplate.config.text.color
-                                  : e.target.value,
-                            })
-                          }
-                          placeholder={builderTemplate.config.text.color}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="field-text-size" className="text-sm font-semibold">
-                          {t('templateEditor.textSize')}
-                        </Label>
-                        <Select
-                          value={
-                            isRowFieldTextPropertyCustomized(
-                              selectedRowField,
-                              'size'
-                            )
-                              ? selectedRowField.text.size!
-                              : TEMPLATE_TEXT_DEFAULT_OPTION
-                          }
-                          onValueChange={(value) =>
-                            updateSelectedFieldText({
-                              size:
-                                value === TEMPLATE_TEXT_DEFAULT_OPTION
-                                  ? builderTemplate.config.text.size
-                                  : (value as TemplateTextConfig['size']),
-                            })
-                          }
-                        >
-                          <SelectTrigger id="field-text-size" className="h-10">
-                            <SelectValue placeholder={t('templateEditor.default')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={TEMPLATE_TEXT_DEFAULT_OPTION}>
-                              {t('templateEditor.default')}
-                            </SelectItem>
-                            {TEMPLATE_SIZES.map((size) => (
-                              <SelectItem key={size} value={size}>
-                                {t(`templateEditor.size.${size}`)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="field-text-shape" className="text-sm font-semibold">
-                          {t('templateEditor.textStyle')}
-                        </Label>
-                        <Select
-                          value={
-                            isRowFieldTextPropertyCustomized(
-                              selectedRowField,
-                              'shape'
-                            )
-                              ? selectedRowField.text.shape!
-                              : TEMPLATE_TEXT_DEFAULT_OPTION
-                          }
-                          onValueChange={(value) =>
-                            updateSelectedFieldText({
-                              shape:
-                                value === TEMPLATE_TEXT_DEFAULT_OPTION
-                                  ? builderTemplate.config.text.shape
-                                  : (value as TemplateTextConfig['shape']),
-                            })
-                          }
-                        >
-                          <SelectTrigger id="field-text-shape" className="h-10">
-                            <SelectValue placeholder={t('templateEditor.default')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={TEMPLATE_TEXT_DEFAULT_OPTION}>
-                              {t('templateEditor.default')}
-                            </SelectItem>
-                            {TEXT_SHAPES.map((shape) => (
-                              <SelectItem key={shape} value={shape}>
-                                {t(`templateEditor.textShape.${shape}`)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
-        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+        <div
+          className="order-1 flex min-w-0 flex-1 flex-col gap-4 lg:order-2 lg:sticky lg:top-4 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto"
+        >
           <PreviewPanel
             resolvedHtml={resolvedHtml}
             onCopy={copyPreviewAsRichHtml}
-            copied={copiedSection === 'preview'}
+            copied={copiedPreview}
             iframeRef={previewIframeRef}
+            className="min-h-[min(50vh,24rem)] shrink-0"
           />
-        </div>
 
-        <div className="flex min-h-[24rem] flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-          <HtmlPanel
-            value={templateHtml}
-            onChange={setTemplateHtml}
-            onCopy={() => copyToClipboard(resolvedHtml, 'html')}
-            copied={copiedSection === 'html'}
-          />
+          <section
+            className="rounded-2xl border border-border/80 bg-card p-4 shadow-sm sm:p-5"
+            aria-labelledby={
+              selectedRowField && selectedField
+                ? 'template-field-style-heading'
+                : 'template-attributes-heading'
+            }
+          >
+            {selectedRowField && selectedField ? (
+              <TemplateFieldStylePanel
+                field={selectedRowField}
+                rowNumber={selectedField.rowIndex + 1}
+                fieldName={builderFieldLabel(selectedRowField.label)}
+                templateText={builderTemplate.config.text}
+                onBack={() => setSelectedField(null)}
+                onReset={resetSelectedFieldText}
+                onUpdateText={updateSelectedFieldText}
+              />
+            ) : (
+              <>
+            <div className="mb-5">
+              <h2
+                id="template-attributes-heading"
+                className="text-sm font-semibold tracking-tight"
+              >
+                {t('templateEditor.sections.attributes')}
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                {t('templateEditor.attributesHint')}
+              </p>
+            </div>
+
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="template-name" className="text-sm font-medium">
+                  {t('templateEditor.templateName')}
+                </Label>
+                <Input
+                  id="template-name"
+                  value={builderTemplate.name}
+                  onChange={(e) =>
+                    setBuilderTemplate((prev) => ({ ...prev, name: e.target.value }))
+                  }
+                  placeholder={t('templateEditor.untitled')}
+                />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="image-url" className="text-sm font-medium">
+                    {t('templateEditor.imageUrl')}
+                  </Label>
+                  <Input
+                    id="image-url"
+                    value={builderTemplate.config.image.url}
+                    onChange={(e) =>
+                      setBuilderTemplate((prev) => ({
+                        ...prev,
+                        config: {
+                          ...prev.config,
+                          image: { ...prev.config.image, url: e.target.value },
+                        },
+                      }))
+                    }
+                    placeholder={t('templateEditor.imageUrlPlaceholder')}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="image-placement" className="text-sm font-medium">
+                    {t('templateEditor.imagePlacement')}
+                  </Label>
+                  <Select
+                    value={builderTemplate.config.image.placement}
+                    onValueChange={(value) =>
+                      setBuilderTemplate((prev) => ({
+                        ...prev,
+                        config: {
+                          ...prev.config,
+                          image: {
+                            ...prev.config.image,
+                            placement: value as NewTemplate['config']['image']['placement'],
+                          },
+                        },
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="image-placement" className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IMAGE_PLACEMENTS.map((placement) => (
+                        <SelectItem key={placement} value={placement}>
+                          {t(`templateEditor.placement.${placement}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="image-size" className="text-sm font-medium">
+                    {t('templateEditor.imageSize')}
+                  </Label>
+                  <Select
+                    value={builderTemplate.config.image.size}
+                    onValueChange={(value) =>
+                      setBuilderTemplate((prev) => ({
+                        ...prev,
+                        config: {
+                          ...prev.config,
+                          image: {
+                            ...prev.config.image,
+                            size: value as NewTemplate['config']['image']['size'],
+                          },
+                        },
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="image-size" className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEMPLATE_SIZES.map((size) => (
+                        <SelectItem key={size} value={size}>
+                          {t(`templateEditor.size.${size}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="image-shape" className="text-sm font-medium">
+                    {t('templateEditor.imageShape')}
+                  </Label>
+                  <Select
+                    value={builderTemplate.config.image.shape}
+                    onValueChange={(value) =>
+                      setBuilderTemplate((prev) => ({
+                        ...prev,
+                        config: {
+                          ...prev.config,
+                          image: {
+                            ...prev.config.image,
+                            shape: value as NewTemplate['config']['image']['shape'],
+                          },
+                        },
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="image-shape" className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {IMAGE_SHAPES.map((shape) => (
+                        <SelectItem key={shape} value={shape}>
+                          {t(`templateEditor.shape.${shape}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="text-font" className="text-sm font-medium">
+                    {t('templateEditor.textFont')}
+                  </Label>
+                  <Input
+                    id="text-font"
+                    value={builderTemplate.config.text.font}
+                    onChange={(e) =>
+                      setBuilderTemplate((prev) => ({
+                        ...prev,
+                        config: {
+                          ...prev.config,
+                          text: { ...prev.config.text, font: e.target.value },
+                        },
+                      }))
+                    }
+                    placeholder={t('templateEditor.textFontPlaceholder')}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="text-color" className="text-sm font-medium">
+                    {t('templateEditor.textColor')}
+                  </Label>
+                  <Input
+                    id="text-color"
+                    value={builderTemplate.config.text.color}
+                    onChange={(e) =>
+                      setBuilderTemplate((prev) => ({
+                        ...prev,
+                        config: {
+                          ...prev.config,
+                          text: { ...prev.config.text, color: e.target.value },
+                        },
+                      }))
+                    }
+                    placeholder={t('templateEditor.textColorPlaceholder')}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="text-size" className="text-sm font-medium">
+                    {t('templateEditor.textSize')}
+                  </Label>
+                  <Select
+                    value={builderTemplate.config.text.size}
+                    onValueChange={(value) =>
+                      setBuilderTemplate((prev) => ({
+                        ...prev,
+                        config: {
+                          ...prev.config,
+                          text: {
+                            ...prev.config.text,
+                            size: value as NewTemplate['config']['text']['size'],
+                          },
+                        },
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="text-size" className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEMPLATE_SIZES.map((size) => (
+                        <SelectItem key={size} value={size}>
+                          {t(`templateEditor.size.${size}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="text-shape" className="text-sm font-medium">
+                    {t('templateEditor.textStyle')}
+                  </Label>
+                  <Select
+                    value={builderTemplate.config.text.shape}
+                    onValueChange={(value) =>
+                      setBuilderTemplate((prev) => ({
+                        ...prev,
+                        config: {
+                          ...prev.config,
+                          text: {
+                            ...prev.config.text,
+                            shape: value as NewTemplate['config']['text']['shape'],
+                          },
+                        },
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="text-shape" className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEXT_SHAPES.map((shape) => (
+                        <SelectItem key={shape} value={shape}>
+                          {t(`templateEditor.textShape.${shape}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+              </>
+            )}
+          </section>
         </div>
       </div>
     </div>
