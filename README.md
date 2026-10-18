@@ -18,7 +18,11 @@
 <br/>
 <br/>
 
-<img src=".github/screenshot.png" width="824" alt="Screenshot" style="border-radius: 5px;"/><br/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/screenshot_dark.png"/>
+  <source media="(prefers-color-scheme: light)" srcset=".github/screenshot.png"/>
+  <img src=".github/screenshot.png" width="824" alt="home page screenshot" style="border-radius: 5px;"/>
+</picture><br/>
 
 </div>
 
@@ -63,19 +67,31 @@ Use the header navigation to move between **Home**, **Templates**, and **Signatu
 
 The **Signatures** page lists your saved signatures. Open any card (live preview, title, and timestamp) or start the creation flow with **Create new signature**.
 
-<img src="src/assets/sample-home.png" width="824" alt="Signature library: saved signatures and create new" style="border-radius: 5px;"/><br/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/feature_signatures_library_dark.png"/>
+  <source media="(prefers-color-scheme: light)" srcset=".github/feature_signatures_library_light.png"/>
+  <img src=".github/feature_signatures_library_light.png" width="824" alt="signatures library" style="border-radius: 5px;"/>
+</picture><br/>
 
 ### Signature editor – review
 
 At the end of the guided flow, after choosing a template and filling in your details, the **Review** step shows a full preview. From here you can **Copy for Gmail**, **Copy HTML**, or **Save** back to the library.
 
-<img src="src/assets/sample-review-signature.png" width="824" alt="Review step at the end of the signature editor flow" style="border-radius: 5px;"/><br/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/feature_signature_editor_dark.png"/>
+  <source media="(prefers-color-scheme: light)" srcset=".github/feature_signature_editor_light.png"/>
+  <img src=".github/feature_signature_editor_light.png" width="824" alt="signatures editor" style="border-radius: 5px;"/>
+</picture><br/>
 
 ### Template editor
 
 The **template editor** shows generated **HTML** beside a **live preview**. Adjust template attributes, rows, and per-field styles; the preview updates as you work.
 
-<img src="src/assets/sample-advanced-mode.png" width="824" alt="Template editor: HTML panel next to live preview" style="border-radius: 5px;"/><br/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/feature_template_editor_dark.png"/>
+  <source media="(prefers-color-scheme: light)" srcset=".github/feature_template_editor_light.png"/>
+  <img src=".github/feature_template_editor_light.png" width="824" alt="templates library" style="border-radius: 5px;"/>
+</picture><br/>
 
 </div>
 
