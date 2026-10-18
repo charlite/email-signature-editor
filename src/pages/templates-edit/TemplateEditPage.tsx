@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { Link } from 'react-router';
 import { arrayMove } from '@dnd-kit/sortable';
 import { ArrowLeft, Check, Plus, Save } from 'lucide-react';
@@ -269,7 +270,8 @@ export default function TemplateEditPage() {
         generatedHtml
       )
     );
-  }, [builderTemplate, generatedHtml, saveTemplate]);
+    toast.success(t('templateEditor.toastSaved'));
+  }, [builderTemplate, generatedHtml, saveTemplate, t]);
 
   const copyPreviewAsRichHtml = useCallback(async () => {
     await copyPreviewForGmail(previewIframeRef.current, resolvedHtml);
@@ -294,6 +296,11 @@ export default function TemplateEditPage() {
 
   const removeRow = useCallback(
     (displayIndex: number) => {
+      if (builderTemplate.rows.length <= 1) {
+        toast.error(t('templateEditor.cannotDeleteLastRow'));
+        return;
+      }
+
       const builderIndex = resolveBuilderRowIndex(displayIndex);
       const rowId = rowIds[displayIndex];
 
@@ -318,8 +325,9 @@ export default function TemplateEditPage() {
         }
         return current;
       });
+      toast.success(t('templateEditor.toastRowDeleted'));
     },
-    [resolveBuilderRowIndex, rowIds]
+    [builderTemplate.rows.length, resolveBuilderRowIndex, rowIds, t]
   );
 
   const handleReorderRowIds = useCallback((fromIndex: number, toIndex: number) => {

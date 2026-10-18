@@ -1,4 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { fieldsFromRows } from '@/lib/templateFields';
 import { SignatureWizard } from '@/pages/signatures-edit/components/SignatureWizard';
 import { useUserContext } from '@/contexts/UserContext';
@@ -8,6 +10,7 @@ import {
 } from '@/utils/utils';
 
 export default function SignatureEditPage() {
+  const { t } = useTranslation();
   const {
     applyTemplateWithDefaults,
     selectedTemplate,
@@ -42,6 +45,11 @@ export default function SignatureEditPage() {
   const reviewStep = fieldsFromRows(selectedTemplate.rows).length + 1;
   const effectiveStep = Math.min(simpleStep, reviewStep);
 
+  const handleSaveSignature = useCallback(() => {
+    saveSignature();
+    toast.success(t('signatures.toastSaved'));
+  }, [saveSignature, t]);
+
   return (
     <SignatureWizard
       step={effectiveStep}
@@ -55,7 +63,7 @@ export default function SignatureEditPage() {
       copiedPreview={copiedSection === 'preview'}
       iframeRef={iframeRef}
       onIframeLoad={() => {}}
-      onSave={saveSignature}
+      onSave={handleSaveSignature}
       saveSuccess={saveSuccess}
       templates={templates}
       selectedTemplate={selectedTemplate}

@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Outlet } from 'react-router';
 import { AppHeader } from '@/components/AppHeader';
 import { GitHubFooter } from '@/components/GitHubFooter';
+import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useUserContext } from '@/contexts/UserContext';
 
@@ -26,6 +27,7 @@ export default function App() {
         </div>
         <GitHubFooter />
       </div>
+      <Toaster position="top-right" />
     </TooltipProvider>
   );
 }

@@ -2,11 +2,11 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   downloadSignatureImage,
   getSupportedSignatureImageFormats,
-  openSignatureImageExportTab,
   type SignatureImageFormat,
 } from '@/lib/signatureImageExport';
 import { useAppPreviewTheme } from '@/hooks/useAppPreviewTheme';
@@ -122,19 +122,28 @@ export function SignatureExportButton({
     event: React.MouseEvent<HTMLButtonElement>
   ) => {
     isolateEvent(event);
-    const exportWindow = openSignatureImageExportTab();
-
     const previewIframe = getPreviewIframe?.() ?? null;
-    void runExport(() =>
-      downloadSignatureImage(
-        html,
-        format,
-        fileName,
-        exportWindow,
-        previewTheme,
-        previewIframe
-      )
-    );
+
+    void runExport(async () => {
+      const loadingToastId = toast.loading(t('signatures.exportImageGenerating'));
+      try {
+        await downloadSignatureImage(
+          html,
+          format,
+          fileName,
+          previewTheme,
+          previewIframe
+        );
+        toast.dismiss(loadingToastId);
+        toast.success(t('signatures.exportDownloadComplete'));
+      } catch (error) {
+        toast.dismiss(loadingToastId);
+        const message =
+          error instanceof Error ? error.message : t('signatures.exportImageFailed');
+        toast.error(message);
+        throw error;
+      }
+    });
   };
 
   const menu =

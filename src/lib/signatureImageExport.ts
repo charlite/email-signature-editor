@@ -83,14 +83,6 @@ export function suggestedSignatureImageName(
   return `${sanitizeSignatureFileName(fileName)}.${extensionForFormat(format)}`;
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 async function prepareImagesForExport(root: ParentNode): Promise<void> {
   await inlineImagesForExport(root, waitForOneImage, IMAGE_LOAD_TIMEOUT_MS);
 }
@@ -336,129 +328,35 @@ export async function generateSignatureImageBlob(
     : new Error('Failed to export signature image');
 }
 
-/** Open synchronously inside a click handler to avoid popup blockers. */
-export function openSignatureImageExportTab(): Window | null {
-  return window.open('about:blank', '_blank');
-}
-
-function renderExportErrorInTab(exportWindow: Window, message: string) {
-  const safeMessage = escapeHtml(message);
-  exportWindow.document.open();
-  exportWindow.document.write(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Export failed</title>
-  <style>
-    body { margin: 0; font-family: Arial, sans-serif; background: #f4f4f5; color: #18181b; }
-    main { max-width: 32rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
-    h1 { font-size: 1.125rem; margin: 0 0 0.75rem; }
-    p { margin: 0; font-size: 0.875rem; color: #71717a; }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Could not generate image</h1>
-    <p>${safeMessage}</p>
-  </main>
-</body>
-</html>`);
-  exportWindow.document.close();
-}
-
-function renderImageInExportTab(
-  exportWindow: Window,
+export function triggerSignatureImageDownload(
   blob: Blob,
   fileName: string,
   format: SignatureImageFormat
-) {
-  const url = URL.createObjectURL(blob);
+): void {
   const downloadName = suggestedSignatureImageName(fileName, format);
-  const safeTitle = escapeHtml(downloadName);
-  const safeDownloadName = escapeHtml(downloadName);
-
-  exportWindow.document.open();
-  exportWindow.document.write(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>${safeTitle}</title>
-  <style>
-    body { margin: 0; font-family: Arial, sans-serif; background: #f4f4f5; color: #18181b; }
-    main { max-width: 42rem; margin: 0 auto; padding: 1.5rem; }
-    img { display: block; max-width: 100%; height: auto; background: #fff; border: 1px solid #e4e4e7; border-radius: 0.5rem; }
-    p { margin: 1rem 0 0; font-size: 0.875rem; line-height: 1.5; color: #71717a; }
-    a { color: #2563eb; text-decoration: underline; }
-  </style>
-</head>
-<body>
-  <main>
-    <img src="${url}" alt="Signature export" />
-    <p>Right-click the image and choose <strong>Save image as…</strong>, or <a href="${url}" download="${safeDownloadName}">download the file</a>.</p>
-  </main>
-</body>
-</html>`);
-  exportWindow.document.close();
-
-  exportWindow.addEventListener(
-    'beforeunload',
-    () => {
-      URL.revokeObjectURL(url);
-    },
-    { once: true }
-  );
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = downloadName;
+  anchor.rel = 'noopener';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export async function downloadSignatureImage(
   html: string,
   format: SignatureImageFormat,
   fileName: string,
-  exportWindow?: Window | null,
   theme: SignaturePreviewTheme = 'light',
   previewIframe?: HTMLIFrameElement | null
 ): Promise<void> {
-  if (!exportWindow || exportWindow.closed) {
-    throw new Error(
-      'Could not open export tab. Allow pop-ups for this site and try again.'
-    );
-  }
-
-  exportWindow.document.open();
-  exportWindow.document.write(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Exporting…</title>
-  <style>
-    body { margin: 0; font-family: Arial, sans-serif; background: #f4f4f5; color: #71717a; }
-    main { display: flex; min-height: 100vh; align-items: center; justify-content: center; padding: 1.5rem; }
-  </style>
-</head>
-<body>
-  <main>Generating image…</main>
-</body>
-</html>`);
-  exportWindow.document.close();
-
-  try {
-    const blob = await generateSignatureImageBlob(
-      html,
-      format,
-      theme,
-      previewIframe
-    );
-
-    if (exportWindow.closed) {
-      throw new Error('Export tab was closed before the image finished generating.');
-    }
-
-    renderImageInExportTab(exportWindow, blob, fileName, format);
-  } catch (error) {
-    if (!exportWindow.closed) {
-      const message =
-        error instanceof Error ? error.message : 'Unknown export error';
-      renderExportErrorInTab(exportWindow, message);
-    }
-    throw error;
-  }
+  const blob = await generateSignatureImageBlob(
+    html,
+    format,
+    theme,
+    previewIframe
+  );
+  triggerSignatureImageDownload(blob, fileName, format);
 }
