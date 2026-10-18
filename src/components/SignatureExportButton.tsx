@@ -16,6 +16,8 @@ import { cn } from '@/lib/utils';
 interface SignatureExportButtonProps {
   html: string;
   fileName: string;
+  /** Live preview iframe on the card — used for faster, more reliable image export. */
+  getPreviewIframe?: () => HTMLIFrameElement | null;
   variant?: 'default' | 'outline' | 'secondary' | 'ghost';
   size?: 'default' | 'sm' | 'lg' | 'icon' | 'icon-sm';
   className?: string;
@@ -30,6 +32,7 @@ interface MenuPosition {
 export function SignatureExportButton({
   html,
   fileName,
+  getPreviewIframe,
   variant = 'outline',
   size = 'sm',
   className,
@@ -121,8 +124,16 @@ export function SignatureExportButton({
     isolateEvent(event);
     const exportWindow = openSignatureImageExportTab();
 
+    const previewIframe = getPreviewIframe?.() ?? null;
     void runExport(() =>
-      downloadSignatureImage(html, format, fileName, exportWindow, previewTheme)
+      downloadSignatureImage(
+        html,
+        format,
+        fileName,
+        exportWindow,
+        previewTheme,
+        previewIframe
+      )
     );
   };
 

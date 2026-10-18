@@ -228,6 +228,7 @@ export function SignatureWizard({
                         date: new Date().toLocaleDateString(),
                       })
                     }
+                    getPreviewIframe={() => iframeRef.current}
                   />
                   <Button
                     variant="secondary"

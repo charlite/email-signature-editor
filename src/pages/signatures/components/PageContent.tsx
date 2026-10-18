@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaLinkedin } from 'react-icons/fa';
 import { Copy, Import, Plus, Trash2 } from 'lucide-react';
@@ -26,6 +27,7 @@ export function PageContent({
 }: PageContentProps) {
   const { t } = useTranslation();
   const { templates } = useUserContext();
+  const previewIframeById = useRef(new Map<string, HTMLIFrameElement>());
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 py-4">
@@ -81,7 +83,14 @@ export function PageContent({
               <LibraryCard
                 key={item.id}
                 content={
-                  <SignaturePreviewIframe html={html} title={title} />
+                  <SignaturePreviewIframe
+                    html={html}
+                    title={title}
+                    ref={(node) => {
+                      if (node) previewIframeById.current.set(item.id, node);
+                      else previewIframeById.current.delete(item.id);
+                    }}
+                  />
                 }
                 title={title}
                 subtitle={new Date(item.createdAt).toLocaleString()}
@@ -103,6 +112,9 @@ export function PageContent({
                     <SignatureExportButton
                       html={html}
                       fileName={title}
+                      getPreviewIframe={() =>
+                        previewIframeById.current.get(item.id) ?? null
+                      }
                       stopPropagation
                     />
                     <Button
