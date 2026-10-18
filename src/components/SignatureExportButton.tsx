@@ -2,11 +2,11 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   downloadSignatureImage,
   getSupportedSignatureImageFormats,
-  openSignatureImageExportTab,
   type SignatureImageFormat,
 } from '@/lib/signatureImageExport';
 import { useAppPreviewTheme } from '@/hooks/useAppPreviewTheme';
@@ -16,6 +16,8 @@ import { cn } from '@/lib/utils';
 interface SignatureExportButtonProps {
   html: string;
   fileName: string;
+  /** Live preview iframe on the card — used for faster, more reliable image export. */
+  getPreviewIframe?: () => HTMLIFrameElement | null;
   variant?: 'default' | 'outline' | 'secondary' | 'ghost';
   size?: 'default' | 'sm' | 'lg' | 'icon' | 'icon-sm';
   className?: string;
@@ -30,6 +32,7 @@ interface MenuPosition {
 export function SignatureExportButton({
   html,
   fileName,
+  getPreviewIframe,
   variant = 'outline',
   size = 'sm',
   className,
@@ -119,11 +122,28 @@ export function SignatureExportButton({
     event: React.MouseEvent<HTMLButtonElement>
   ) => {
     isolateEvent(event);
-    const exportWindow = openSignatureImageExportTab();
+    const previewIframe = getPreviewIframe?.() ?? null;
 
-    void runExport(() =>
-      downloadSignatureImage(html, format, fileName, exportWindow, previewTheme)
-    );
+    void runExport(async () => {
+      const loadingToastId = toast.loading(t('signatures.exportImageGenerating'));
+      try {
+        await downloadSignatureImage(
+          html,
+          format,
+          fileName,
+          previewTheme,
+          previewIframe
+        );
+        toast.dismiss(loadingToastId);
+        toast.success(t('signatures.exportDownloadComplete'));
+      } catch (error) {
+        toast.dismiss(loadingToastId);
+        const message =
+          error instanceof Error ? error.message : t('signatures.exportImageFailed');
+        toast.error(message);
+        throw error;
+      }
+    });
   };
 
   const menu =

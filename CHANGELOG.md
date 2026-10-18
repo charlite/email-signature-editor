@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-10-18 — Image export reliability, toasts, and site footer
+
+### Added
+
+- **Sonner toasts** – Success and error feedback when duplicating or deleting templates, saving templates or signatures, and removing template rows (including guard when deleting the last row)
+- **`SiteFooter`** – CookGPT-style footer with product, legal (MIT License, Contributing, Security), and open-source links; shared `site.ts` GitHub URLs
+- **Image export pipeline** – Cloudflare Worker `/api/export-image` and dev Vite proxy for cross-origin image inlining; `exportImageEmbed.ts` for fetch/data-URL embedding before capture
+- **Export UX** – Direct browser download for PNG/JPEG/WebP (no popup tab); generating / success / error toasts on image export
+- **README** – Responsive `<picture>` screenshots and new feature images (signature editor, template editor, signatures library) in light and dark themes
+
+### Changed
+
+- **App layout** – Scrollable main content with `SiteFooter` above the pinned **GitHub** star bar at the bottom of the viewport
+- **Signature image export** – Improved capture from preview iframe, CORS handling, and **16px** padding on exported images
+- **`GitHubFooter`** – Repo URL centralized via `site.ts`
+
+### Dependencies
+
+- **sonner** – Toast notifications (`Toaster` in `App.tsx`)
+
 ## [1.3.0] - 2026-10-17 — Template editor UX, previews, and color picker
 
 ### Added

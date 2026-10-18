@@ -14,6 +14,23 @@
     "title": "Email Signature Editor",
     "subtitle": "Edit your HTML signature and copy it into Gmail"
   },
+  "footer": {
+    "tagline": "Build, preview, and copy professional HTML email signatures for Gmail.",
+    "copyright": "Copyright © {{year}} Email Signature Editor. All rights reserved.",
+    "columns": {
+      "product": "Product",
+      "legal": "Legal",
+      "github": "Open Source"
+    },
+    "links": {
+      "repository": "Repository",
+      "license": "MIT License",
+      "contributing": "Contributing",
+      "security": "Security",
+      "author": "@{{author}}"
+    },
+    "github": "Open source on GitHub"
+  },
   "home": {
     "createSignature": "Create signature",
     "browseTemplates": "Browse templates",
@@ -106,6 +123,7 @@
     "editAgain": "Edit from start",
     "save": "Save",
     "saved": "Saved!",
+    "toastSaved": "Signature saved",
     "backToLibrary": "Library",
     "libraryTitle": "Your signatures",
     "librarySubtitle": "Open a saved signature or create a new one.",
@@ -120,6 +138,9 @@
     "exportPng": "PNG image",
     "exportJpeg": "JPEG image",
     "exportWebp": "WebP image",
+    "exportImageGenerating": "Generating image…",
+    "exportDownloadComplete": "Download complete",
+    "exportImageFailed": "Could not export image",
     "noSaved": "No saved signatures yet.",
     "delete": "Delete",
     "untitled": "Signature — {{date}}",
@@ -142,7 +163,10 @@
     "defaultSectionHint": "Starter layouts included with the app.",
     "savedSection": "Saved templates",
     "savedSectionHint": "Your customized templates stored in this browser.",
-    "cardHint": "Click a card to open the editor, or use Duplicate to create an editable copy."
+    "cardHint": "Click a card to open the editor, or use Duplicate to create an editable copy.",
+    "toastDuplicated": "Template duplicated",
+    "toastDuplicateFailed": "Could not duplicate template",
+    "toastDeleted": "Template deleted"
   },
   "templateEditor": {
     "title": "Template editor",
@@ -153,6 +177,9 @@
     "livePreviewHint": "Sample data is used. Preview follows the app theme; pasted signatures adapt to Gmail or Outlook light/dark.",
     "save": "Save",
     "saved": "Saved",
+    "toastSaved": "Template saved",
+    "toastRowDeleted": "Row removed",
+    "cannotDeleteLastRow": "Keep at least one row in the template",
     "untitled": "Untitled Template",
     "sections": {
       "attributes": "Template attributes",
