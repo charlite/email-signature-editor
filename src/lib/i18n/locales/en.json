@@ -14,6 +14,23 @@
     "title": "Email Signature Editor",
     "subtitle": "Edit your HTML signature and copy it into Gmail"
   },
+  "footer": {
+    "tagline": "Build, preview, and copy professional HTML email signatures for Gmail.",
+    "copyright": "Copyright © {{year}} Email Signature Editor. All rights reserved.",
+    "columns": {
+      "product": "Product",
+      "legal": "Legal",
+      "github": "Open Source"
+    },
+    "links": {
+      "repository": "Repository",
+      "license": "MIT License",
+      "contributing": "Contributing",
+      "security": "Security",
+      "author": "@{{author}}"
+    },
+    "github": "Open source on GitHub"
+  },
   "home": {
     "createSignature": "Create signature",
     "browseTemplates": "Browse templates",

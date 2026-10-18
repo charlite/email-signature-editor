@@ -325,3 +325,27 @@ html.dark {
   width: 1.125rem;
   height: 1.125rem;
 }
+
+.landing-container {
+  width: 100%;
+  max-width: 72rem;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+}
+
+@media (min-width: 768px) {
+  .landing-container {
+    padding-inline: 2rem;
+  }
+}
+
+.site-footer-link {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+  transition: color 150ms ease;
+}
+
+.site-footer-link:hover {
+  color: var(--foreground);
+}
