@@ -1,8 +1,4 @@
-interface Env {
-  ASSETS: Fetcher;
-}
-
-async function proxyExportImage(request: Request): Promise<Response> {
+export async function proxyExportImage(request: Request): Promise<Response> {
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       headers: {
@@ -50,15 +46,3 @@ async function proxyExportImage(request: Request): Promise<Response> {
     return new Response('Bad gateway', { status: 502 });
   }
 }
-
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const { pathname } = new URL(request.url);
-
-    if (pathname === '/api/export-image') {
-      return proxyExportImage(request);
-    }
-
-    return env.ASSETS.fetch(request);
-  },
-} satisfies ExportedHandler<Env>;
